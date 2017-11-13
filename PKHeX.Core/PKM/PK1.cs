@@ -5,6 +5,7 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
+    /// <summary> Generation 1 <see cref="PKM"/> format. </summary>
     public class PK1 : PKM
     {
         // Internal use only
@@ -113,20 +114,42 @@ namespace PKHeX.Core
         public void SetNotNicknamed() => nick = GetNonNickname().ToArray();
         private IEnumerable<byte> GetNonNickname()
         {
-            var lang = Japanese ? 1 : 2;
-            var name = PKX.GetSpeciesNameGeneration(Species, lang, Format);
+            var name = PKX.GetSpeciesNameGeneration(Species, GuessedLanguage(), Format);
             var bytes = SetString(name, StringLength);
             return bytes.Concat(Enumerable.Repeat((byte)0x50, nick.Length - bytes.Length))
                 .Select(b => (byte)(b == 0xF2 ? 0xE8 : b)); // Decimal point<->period fix
         }
-
         public bool IsNicknamedBank
         {
             get
             {
-                var spName = PKX.GetSpeciesNameGeneration(Species, Japanese ? 1 : 2, Format);
+                var spName = PKX.GetSpeciesNameGeneration(Species, GuessedLanguage(), Format);
                 return Nickname != spName;
             }
+        }
+        public override int Language
+        {
+            get
+            {
+                if (Japanese)
+                    return (int)LanguageID.Japanese;
+                if (StringConverter.IsG12German(otname))
+                    return (int)LanguageID.German;
+                int lang = PKX.GetSpeciesNameLanguage(Species, Nickname, Format);
+                if (lang > 0)
+                    return lang;
+                return 0;
+            }
+            set { }
+        }
+        private int GuessedLanguage(int fallback = (int)LanguageID.English)
+        {
+            int lang = Language;
+            if (lang > 0)
+                return lang;
+            if (fallback == (int)LanguageID.French || fallback == (int)LanguageID.German) // only other permitted besides English
+                return fallback;
+            return (int)LanguageID.English;
         }
 
 
@@ -139,7 +162,7 @@ namespace PKHeX.Core
                 Data[0] = (byte)SpeciesConverter.SetG1Species(value);
 
                 // Before updating catch rate, check if non-standard
-                if (TradebackStatus != TradebackType.WasTradeback && !CatchRateIsItem)
+                if (TradebackStatus != TradebackType.WasTradeback && !CatchRateIsItem && !(value == 25 && Catch_Rate == 0xA3)) // Light Ball Pikachu
                 {
                     int baseSpecies = Legal.GetBaseSpecies(this);
                     int Rate = Catch_Rate;
@@ -239,7 +262,6 @@ namespace PKHeX.Core
         public override ushort Sanity { get => 0; set { } }
         public override bool ChecksumValid => true;
         public override ushort Checksum { get => 0; set { } }
-        public override int Language { get => 0; set { } }
         public override bool FatefulEncounter { get => false; set { } }
         public override int TSV => 0x0000;
         public override int PSV => 0xFFFF;
@@ -383,10 +405,10 @@ namespace PKHeX.Core
                 CurrentHandler = 1,
                 HT_Name = PKMConverter.OT_Name,
                 HT_Gender = PKMConverter.OT_Gender,
-                Language = PKMConverter.Language,
                 Geo1_Country = PKMConverter.Country,
                 Geo1_Region = PKMConverter.Region
             };
+            pk7.Language = GuessedLanguage(PKMConverter.Language);
             pk7.Nickname = PKX.GetSpeciesNameGeneration(pk7.Species, pk7.Language, pk7.Format);
             if (otname[0] == 0x5D) // Ingame Trade
             {

@@ -3,6 +3,9 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generation 1 <see cref="SaveFile"/> object.
+    /// </summary>
     public sealed class SAV1 : SaveFile
     {
         public override string BAKName => $"{FileName} [{OT} ({Version}) - {PlayTimeString}].bak";
@@ -18,7 +21,7 @@ namespace PKHeX.Core
         {
             Data = data == null ? new byte[SaveUtil.SIZE_G1RAW] : (byte[])data.Clone();
             BAK = (byte[])Data.Clone();
-            Exportable = !Data.SequenceEqual(new byte[Data.Length]);
+            Exportable = !Data.All(z => z == 0);
 
             if (data == null)
                 Version = GameVersion.RBY;
@@ -28,7 +31,7 @@ namespace PKHeX.Core
             if (Version == GameVersion.Invalid)
                 return;
             if (Starter != 0)
-                Version = Yellow ? GameVersion.Y : GameVersion.RB;
+                Version = Yellow ? GameVersion.YW : GameVersion.RB;
 
             Box = Data.Length;
             Array.Resize(ref Data, Data.Length + SIZE_RESERVED);
@@ -462,37 +465,25 @@ namespace PKHeX.Core
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-            
-            if (seen)
-                Data[PokedexSeenOffset + ofs] |= bitval;
-            else
-                Data[PokedexSeenOffset + ofs] &= (byte)~bitval;
+            SetFlag(PokedexSeenOffset + ofs, bit & 7, seen);
         }
         public override void SetCaught(int species, bool caught)
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-
-            if (caught)
-                Data[PokedexCaughtOffset + ofs] |= bitval;
-            else
-                Data[PokedexCaughtOffset + ofs] &= (byte)~bitval;
+            SetFlag(PokedexCaughtOffset + ofs, bit & 7, caught);
         }
         public override bool GetSeen(int species)
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-            return (Data[PokedexSeenOffset + ofs] & bitval) != 0;
+            return GetFlag(PokedexSeenOffset + ofs, bit & 7);
         }
         public override bool GetCaught(int species)
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-            return (Data[PokedexCaughtOffset + ofs] & bitval) != 0;
+            return GetFlag(PokedexCaughtOffset + ofs, bit & 7);
         }
 
         private const int SpawnFlagCount = 0xF0;

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 
@@ -9,6 +10,10 @@ namespace PKHeX.Core
     public partial class Util
     {
         private const string TranslationSplitter = " = ";
+        private static readonly Assembly thisAssembly = typeof(Util).GetTypeInfo().Assembly;
+        private static readonly string[] manifestResourceNames = thisAssembly.GetManifestResourceNames();
+        private static readonly Dictionary<string, string> resourceNameMap = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string[]> stringListCache = new Dictionary<string, string[]>();
 
         #region String Lists        
 
@@ -17,108 +22,73 @@ namespace PKHeX.Core
         /// </summary>
         /// <param name="language">Language of the Pokémon species names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon species name.</returns>
-        public static string[] GetSpeciesList(string language)
-        {
-            return GetStringList("species", language);
-        }
+        public static string[] GetSpeciesList(string language) => GetStringList("species", language);
 
         /// <summary>
         /// Gets a list of all move names.
         /// </summary>
         /// <param name="language">Language of the move names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each move name.</returns>
-        public static string[] GetMovesList(string language)
-        {
-            return GetStringList("moves", language);
-        }
+        public static string[] GetMovesList(string language) => GetStringList("moves", language);
 
         /// <summary>
         /// Gets a list of all Pokémon ability names.
         /// </summary>
         /// <param name="language">Language of the Pokémon ability names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon ability name.</returns>
-        public static string[] GetAbilitiesList(string language)
-        {
-            return GetStringList("abilities", language);
-        }
+        public static string[] GetAbilitiesList(string language) => GetStringList("abilities", language);
 
         /// <summary>
         /// Gets a list of all Pokémon nature names.
         /// </summary>
         /// <param name="language">Language of the Pokémon nature names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon nature name.</returns>
-        public static string[] GetNaturesList(string language)
-        {
-            return GetStringList("natures", language);
-        }
+        public static string[] GetNaturesList(string language) => GetStringList("natures", language);
 
         /// <summary>
         /// Gets a list of all Pokémon form names.
         /// </summary>
         /// <param name="language">Language of the Pokémon form names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon form name.</returns>
-        public static string[] GetFormsList(string language)
-        {
-            return GetStringList("forms", language);
-        }
+        public static string[] GetFormsList(string language) => GetStringList("forms", language);
 
         /// <summary>
         /// Gets a list of all Pokémon type names.
         /// </summary>
         /// <param name="language">Language of the Pokémon type names to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon type name.</returns>
-        public static string[] GetTypesList(string language)
-        {
-            return GetStringList("types", language);
-        }
+        public static string[] GetTypesList(string language) => GetStringList("types", language);
 
         /// <summary>
         /// Gets a list of all Pokémon characteristic.
         /// </summary>
         /// <param name="language">Language of the Pokémon characteristic to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each Pokémon characteristic.</returns>
-        public static string[] GetCharacteristicsList(string language)
-        {
-            return GetStringList("character", language);
-        }
+        public static string[] GetCharacteristicsList(string language) => GetStringList("character", language);
 
         /// <summary>
         /// Gets a list of all items.
         /// </summary>
         /// <param name="language">Language of the items to select (e.g. "en", "fr", "jp", etc.)</param>
         /// <returns>An array of strings whose indexes correspond to the IDs of each item.</returns>
-        public static string[] GetItemsList(string language)
-        {
-            return GetStringList("items", language);
-        }
+        public static string[] GetItemsList(string language) => GetStringList("items", language);
 
         #endregion
 
         public static string[] GetStringList(string f)
         {
-            var txt = Properties.Resources.ResourceManager.GetString(f); // Fetch File, \n to list.
+            if (stringListCache.ContainsKey(f))
+                return (string[])stringListCache[f].Clone();
+
+            var txt = GetStringResource(f); // Fetch File, \n to list.
             if (txt == null) return new string[0];
             string[] rawlist = txt.Split('\n');
             for (int i = 0; i < rawlist.Length; i++)
                 rawlist[i] = rawlist[i].Trim();
-            return rawlist;
+            stringListCache.Add(f, rawlist);
+            return (string[])rawlist.Clone();
         }
-        public static string[] GetStringList(string f, string l)
-        {
-            var txt = Properties.Resources.ResourceManager.GetString($"text_{f}_{l}"); // Fetch File, \n to list.
-            if (txt == null) return new string[0];
-            string[] rawlist = txt.Split('\n');
-            for (int i = 0; i < rawlist.Length; i++)
-                rawlist[i] = rawlist[i].Trim();
-            return rawlist;
-        }
-        public static string[] GetStringListFallback(string f, string l, string fallback)
-        {
-            string[] text = GetStringList(f, l);
-            if (text.Length == 0)
-                text = GetStringList(f, fallback);
-            return text;
-        }
+        public static string[] GetStringList(string f, string l, string type = "text") => GetStringList($"{type}_{f}_{l}");
         public static string[] GetNulledStringArray(string[] SimpleStringList)
         {
             try
@@ -137,13 +107,28 @@ namespace PKHeX.Core
 
         public static byte[] GetBinaryResource(string name)
         {
-            using (var resource = typeof(Util).GetTypeInfo().Assembly.GetManifestResourceStream(
+            using (var resource = thisAssembly.GetManifestResourceStream(
                 $"PKHeX.Core.Resources.byte.{name}"))
             {
                 var buffer = new byte[resource.Length];
                 resource.Read(buffer, 0, (int)resource.Length);
                 return buffer;
-            }               
+            }
+        }
+
+        public static string GetStringResource(string name)
+        {
+            if (!resourceNameMap.ContainsKey(name))
+                resourceNameMap.Add(name, manifestResourceNames.FirstOrDefault(x =>
+                    x.StartsWith("PKHeX.Core.Resources.text.") &&
+                    x.EndsWith($"{name}.txt", StringComparison.OrdinalIgnoreCase)));
+
+            if (resourceNameMap[name] == null)
+                return null;
+
+            using (var resource = thisAssembly.GetManifestResourceStream(resourceNameMap[name]))
+            using (var reader = new StreamReader(resource))
+                return reader.ReadToEnd();
         }
 
         #region Non-Form Translation

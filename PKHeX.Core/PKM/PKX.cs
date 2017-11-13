@@ -196,12 +196,13 @@ namespace PKHeX.Core
         /// <param name="species">National Dex number of the Pokémon. Should be 0 if an egg.</param>
         /// <param name="lang">Language ID of the Pokémon</param>
         /// <returns>The Species name if within expected range, else an empty string.</returns>
+        /// <remarks>Should only be used externally for message displays; for accurate in-game names use <see cref="GetSpeciesNameGeneration"/>.</remarks>
         public static string GetSpeciesName(int species, int lang)
         {
             if (lang < 0 || SpeciesLang.Length <= lang)
-                return "";
+                return string.Empty;
             if (species < 0 || SpeciesLang[0].Length <= species)
-                return "";
+                return string.Empty;
 
             return SpeciesLang[lang][species];
         }
@@ -219,15 +220,17 @@ namespace PKHeX.Core
                 return "タマゴ";
 
             string nick = GetSpeciesName(species, lang);
+            if (generation == 2 && lang == (int)LanguageID.Korean)
+                return StringConverter.LocalizeKOR2(nick);
 
             if (generation < 5 && (generation != 4 || species != 0)) // All caps GenIV and previous, except GenIV eggs.
             {
                 nick = nick.ToUpper();
-                if (lang == 3)
+                if (lang == (int)LanguageID.French)
                     nick = StringConverter.StripDiacriticsFR4(nick); // strips accents on E and I
             }
             if (generation < 3)
-                nick = nick.Replace(" ", "");
+                nick = nick.Replace(" ", string.Empty);
             return nick;
         }
 
@@ -240,15 +243,21 @@ namespace PKHeX.Core
         /// <returns>True if it does not match any language name, False if not nicknamed</returns>
         public static bool IsNicknamedAnyLanguage(int species, string nick, int generation)
         {
-            IEnumerable<int> len;
+            var langs = GetAvailableGameLanguages(generation);
+            return langs.All(lang => GetSpeciesNameGeneration(species, lang, generation) != nick);
+        }
+        private static IEnumerable<int> GetAvailableGameLanguages(int generation)
+        {
             if (generation < 3)
-                len = new[] {1,2,8}; // check Korean for the VC case, never possible to match string outside of this case
-            else if (generation < 7)
-                len = Enumerable.Range(1, 9 - 1); // chinese (CHS/CHT) introduced in Gen7
-            else
-                len = Enumerable.Range(1, SpeciesLang.Length - 1);
+                return new[]
+                {
+                    (int) LanguageID.Japanese, (int) LanguageID.English, (int) LanguageID.French, (int) LanguageID.German,
+                    (int) LanguageID.Korean // check Korean for the VC case, never possible to match string outside of this case
+                };
+            if (generation < 7)
+                return Enumerable.Range(1, 9 - 1); // chinese (CHS/CHT) introduced in Gen7
 
-            return len.All(lang => GetSpeciesNameGeneration(species, lang, generation) != nick);
+            return Enumerable.Range(1, SpeciesLang.Length - 1);
         }
 
         /// <summary>
@@ -260,15 +269,11 @@ namespace PKHeX.Core
         /// <returns>Language ID if it does not match any language name, -1 if no matches</returns>
         public static int GetSpeciesNameLanguage(int species, string nick, int generation)
         {
-            int len = SpeciesLang.Length;
-            if (generation < 3)
-                len = 3;
-            else if (generation < 7)
-                len = 8;
+            var langs = GetAvailableGameLanguages(generation);
 
-            for (int i = 0; i < len; i++)
-                if (GetSpeciesNameGeneration(species, i, generation) == nick)
-                    return i;
+            foreach (var lang in langs)
+                if (GetSpeciesNameGeneration(species, lang, generation) == nick)
+                    return lang;
             return -1;
         }
 
@@ -744,7 +749,7 @@ namespace PKHeX.Core
 
             byte[] xorkey = BitConverter.GetBytes(seed);
             for (int i = 32; i < 80; i++)
-                ekm[i] ^= xorkey[i % 4];
+                ekm[i] ^= xorkey[i & 3];
             return ShuffleArray3(ekm, PID%24);
         }
 
@@ -787,7 +792,7 @@ namespace PKHeX.Core
             byte[] ekm = ShuffleArray3(pkm, blockPositionInvert[PID%24]);
             byte[] xorkey = BitConverter.GetBytes(seed);
             for (int i = 32; i < 80; i++)
-                ekm[i] ^= xorkey[i % 4];
+                ekm[i] ^= xorkey[i & 3];
             return ekm;
         }
 
@@ -800,15 +805,15 @@ namespace PKHeX.Core
         {
             if (value <= 2 || value > 7)
                 return value;
-            return GCtoMainSeries[value];
+            return (byte)GCtoMainSeries[(LanguageGC)value];
         }
-        private static readonly Dictionary<byte, byte> GCtoMainSeries = new Dictionary<byte, byte>
+        private static readonly Dictionary<LanguageGC, LanguageID> GCtoMainSeries = new Dictionary<LanguageGC, LanguageID>
         {
-            {3, 5}, // German
-            {4, 3}, // French
-            {5, 4}, // Italian
-            {6, 7}, // Spanish
-            {7, 6}, // Korean (Unused)
+            {LanguageGC.German, LanguageID.German},
+            {LanguageGC.French, LanguageID.French},
+            {LanguageGC.Italian, LanguageID.Italian},
+            {LanguageGC.Spanish, LanguageID.Spanish},
+            {LanguageGC.UNUSED_6, LanguageID.UNUSED_6},
         };
 
         /// <summary>
@@ -820,15 +825,15 @@ namespace PKHeX.Core
         {
             if (value <= 2 || value > 7)
                 return value;
-            return MainSeriesToGC[value];
+            return (byte)MainSeriesToGC[(LanguageID)value];
         }
-        private static readonly Dictionary<byte, byte> MainSeriesToGC = new Dictionary<byte, byte>
+        private static readonly Dictionary<LanguageID, LanguageGC> MainSeriesToGC = new Dictionary<LanguageID, LanguageGC>
         {
-            {5, 3}, // German
-            {3, 4}, // French
-            {4, 5}, // Italian
-            {7, 6}, // Spanish
-            {6, 7}, // Korean (Unused)
+            {LanguageID.German, LanguageGC.German},
+            {LanguageID.French, LanguageGC.French},
+            {LanguageID.Italian, LanguageGC.Italian},
+            {LanguageID.Spanish, LanguageGC.Spanish},
+            {LanguageID.UNUSED_6, LanguageGC.UNUSED_6},
         };
 
         /// <summary>

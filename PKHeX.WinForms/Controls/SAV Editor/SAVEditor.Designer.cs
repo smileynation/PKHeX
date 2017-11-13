@@ -104,12 +104,13 @@
             this.B_OUTPasserby = new System.Windows.Forms.Button();
             this.B_CGearSkin = new System.Windows.Forms.Button();
             this.B_OpenPokeBeans = new System.Windows.Forms.Button();
-            this.B_OpenZygardeCells = new System.Windows.Forms.Button();
+            this.B_CellsStickers = new System.Windows.Forms.Button();
             this.B_OpenMiscEditor = new System.Windows.Forms.Button();
             this.B_OpenHoneyTreeEditor = new System.Windows.Forms.Button();
             this.B_OpenFriendSafari = new System.Windows.Forms.Button();
             this.B_OpenRTCEditor = new System.Windows.Forms.Button();
             this.B_OpenUGSEditor = new System.Windows.Forms.Button();
+            this.B_Roamer = new System.Windows.Forms.Button();
             this.tabBoxMulti.SuspendLayout();
             this.Tab_Box.SuspendLayout();
             this.Tab_PartyBattle.SuspendLayout();
@@ -776,12 +777,13 @@
             this.FLP_SAVtools.Controls.Add(this.B_OUTPasserby);
             this.FLP_SAVtools.Controls.Add(this.B_CGearSkin);
             this.FLP_SAVtools.Controls.Add(this.B_OpenPokeBeans);
-            this.FLP_SAVtools.Controls.Add(this.B_OpenZygardeCells);
+            this.FLP_SAVtools.Controls.Add(this.B_CellsStickers);
             this.FLP_SAVtools.Controls.Add(this.B_OpenMiscEditor);
             this.FLP_SAVtools.Controls.Add(this.B_OpenHoneyTreeEditor);
             this.FLP_SAVtools.Controls.Add(this.B_OpenFriendSafari);
             this.FLP_SAVtools.Controls.Add(this.B_OpenRTCEditor);
             this.FLP_SAVtools.Controls.Add(this.B_OpenUGSEditor);
+            this.FLP_SAVtools.Controls.Add(this.B_Roamer);
             this.FLP_SAVtools.Location = new System.Drawing.Point(6, 10);
             this.FLP_SAVtools.Name = "FLP_SAVtools";
             this.FLP_SAVtools.Size = new System.Drawing.Size(297, 88);
@@ -960,15 +962,15 @@
             this.B_OpenPokeBeans.UseVisualStyleBackColor = true;
             this.B_OpenPokeBeans.Click += new System.EventHandler(this.B_OpenPokeBeans_Click);
             // 
-            // B_OpenZygardeCells
+            // B_CellsStickers
             // 
-            this.B_OpenZygardeCells.Location = new System.Drawing.Point(189, 148);
-            this.B_OpenZygardeCells.Name = "B_OpenZygardeCells";
-            this.B_OpenZygardeCells.Size = new System.Drawing.Size(87, 23);
-            this.B_OpenZygardeCells.TabIndex = 26;
-            this.B_OpenZygardeCells.Text = "Zygarde Cells";
-            this.B_OpenZygardeCells.UseVisualStyleBackColor = true;
-            this.B_OpenZygardeCells.Click += new System.EventHandler(this.B_OpenZygardeCells_Click);
+            this.B_CellsStickers.Location = new System.Drawing.Point(189, 148);
+            this.B_CellsStickers.Name = "B_CellsStickers";
+            this.B_CellsStickers.Size = new System.Drawing.Size(87, 23);
+            this.B_CellsStickers.TabIndex = 26;
+            this.B_CellsStickers.Text = "Cells/Stickers";
+            this.B_CellsStickers.UseVisualStyleBackColor = true;
+            this.B_CellsStickers.Click += new System.EventHandler(this.B_CellsStickers_Click);
             // 
             // B_OpenMiscEditor
             // 
@@ -1019,6 +1021,16 @@
             this.B_OpenUGSEditor.Text = "Underground";
             this.B_OpenUGSEditor.UseVisualStyleBackColor = true;
             this.B_OpenUGSEditor.Click += new System.EventHandler(this.B_OpenUGSEditor_Click);
+            // 
+            // B_Roamer
+            // 
+            this.B_Roamer.Location = new System.Drawing.Point(189, 206);
+            this.B_Roamer.Name = "B_Roamer";
+            this.B_Roamer.Size = new System.Drawing.Size(87, 23);
+            this.B_Roamer.TabIndex = 30;
+            this.B_Roamer.Text = "Roamer";
+            this.B_Roamer.UseVisualStyleBackColor = true;
+            this.B_Roamer.Click += new System.EventHandler(this.B_Roamer_Click);
             // 
             // SAVEditor
             // 
@@ -1148,12 +1160,13 @@
         private System.Windows.Forms.Button B_OUTPasserby;
         private System.Windows.Forms.Button B_CGearSkin;
         private System.Windows.Forms.Button B_OpenPokeBeans;
-        private System.Windows.Forms.Button B_OpenZygardeCells;
+        private System.Windows.Forms.Button B_CellsStickers;
         private System.Windows.Forms.Button B_OpenMiscEditor;
         private System.Windows.Forms.Button B_OpenHoneyTreeEditor;
         private System.Windows.Forms.Button B_OpenFriendSafari;
         private System.Windows.Forms.Button B_OpenRTCEditor;
         public BoxEditor Box;
         private System.Windows.Forms.Button B_OpenUGSEditor;
+        private System.Windows.Forms.Button B_Roamer;
     }
 }

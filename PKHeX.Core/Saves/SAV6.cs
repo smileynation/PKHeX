@@ -6,6 +6,9 @@ using System.Text;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generation 6 <see cref="SaveFile"/> object.
+    /// </summary>
     public sealed class SAV6 : SaveFile
     {
         // Save Data Attributes
@@ -16,7 +19,7 @@ namespace PKHeX.Core
         {
             Data = data == null ? new byte[SaveUtil.SIZE_G6ORAS] : (byte[])data.Clone();
             BAK = (byte[])Data.Clone();
-            Exportable = !Data.SequenceEqual(new byte[Data.Length]);
+            Exportable = !Data.All(z => z == 0);
 
             // Load Info
             GetBlockInfo();
@@ -437,22 +440,42 @@ namespace PKHeX.Core
         public int M
         {
             get => BitConverter.ToUInt16(Data, Trainer1 + 0x02);
-            set => BitConverter.GetBytes((ushort)value).CopyTo(Data, Trainer1 + 0x02);
+            set
+            {
+                var val = BitConverter.GetBytes((ushort)value);
+                val.CopyTo(Data, Trainer1 + 0x02);
+                val.CopyTo(Data, Trainer1 + 0x02 + 0xF4);
+            }
         }
         public float X
         {
             get => BitConverter.ToSingle(Data, Trainer1 + 0x10) / 18;
-            set => BitConverter.GetBytes(value * 18).CopyTo(Data, Trainer1 + 0x10);
+            set
+            {
+                var val = BitConverter.GetBytes(value * 18);
+                val.CopyTo(Data, Trainer1 + 0x10);
+                val.CopyTo(Data, Trainer1 + 0x10 + 0xF4);
+            }
         }
         public float Z
         {
             get => BitConverter.ToSingle(Data, Trainer1 + 0x14);
-            set => BitConverter.GetBytes(value).CopyTo(Data, Trainer1 + 0x14);
+            set
+            {
+                var val = BitConverter.GetBytes(value * 18);
+                val.CopyTo(Data, Trainer1 + 0x14);
+                val.CopyTo(Data, Trainer1 + 0x14 + 0xF4);
+            }
         }
         public float Y
         {
             get => BitConverter.ToSingle(Data, Trainer1 + 0x18) / 18;
-            set => BitConverter.GetBytes(value * 18).CopyTo(Data, Trainer1 + 0x18);
+            set
+            {
+                var val = BitConverter.GetBytes(value * 18);
+                val.CopyTo(Data, Trainer1 + 0x18);
+                val.CopyTo(Data, Trainer1 + 0x18 + 0xF4);
+            }
         }
         public int Style
         {
@@ -1062,8 +1085,8 @@ namespace PKHeX.Core
         }
         public override string MiscSaveInfo()
         {
-            return Blocks.Aggregate("", (current, b) => current +
-                $"{b.ID:00}: {b.Offset:X5}-{b.Offset + b.Length:X5}, {b.Length:X5}{Environment.NewLine}");
+            return string.Join(Environment.NewLine,
+                Blocks.Select(b => $"{b.ID:00}: {b.Offset:X5}-{b.Offset + b.Length:X5}, {b.Length:X5}"));
         }
 
         public override string GetString(int Offset, int Count) => StringConverter.GetString6(Data, Offset, Count);

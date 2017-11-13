@@ -1,5 +1,8 @@
 ﻿namespace PKHeX.Core
 {
+    /// <summary>
+    /// Stat/misc data for individual species or their associated alternate forme data.
+    /// </summary>
     public abstract class PersonalInfo
     {
         protected byte[] Data;
@@ -40,8 +43,17 @@
         public virtual int Height { get; set; } = 0;
         public virtual int Weight { get; set; } = 0;
 
+        /// <summary>
+        /// TM/HM learn compatibility flags for individual moves.
+        /// </summary>
         public bool[] TMHM { get; protected set; }
+        /// <summary>
+        /// Grass-Fire-Water-Etc typed learn compatibility flags for individual moves.
+        /// </summary>
         public bool[] TypeTutors { get; protected set; }
+        /// <summary>
+        /// Special tutor learn compatibility flags for individual moves.
+        /// </summary>
         public bool[][] SpecialTutors { get; protected set; } = new bool[0][];
 
         protected static bool[] GetBits(byte[] data)
@@ -59,17 +71,29 @@
             return data;
         }
 
-        public void AddTMHM(byte[] data) => TMHM = GetBits(data);
-        public void AddTypeTutors(byte[] data) => TypeTutors = GetBits(data);
+        /// <summary>
+        /// Injects supplementary TM/HM compatibility which is not present in the generation specific <see cref="PersonalInfo"/> format.
+        /// </summary>
+        /// <param name="data"></param>
+        internal void AddTMHM(byte[] data) => TMHM = GetBits(data);
+        /// <summary>
+        /// Injects supplementary Type Tutor compatibility which is not present in the generation specific <see cref="PersonalInfo"/> format.
+        /// </summary>
+        internal void AddTypeTutors(byte[] data) => TypeTutors = GetBits(data);
 
-        // Data Manipulation
+        /// <summary>
+        /// Gets the <see cref="PersonalTable"/> <see cref="PKM.AltForm"/> entry index for the input criteria, with fallback for the original species entry.
+        /// </summary>
+        /// <param name="species"><see cref="PKM.Species"/> to retrieve for</param>
+        /// <param name="forme"><see cref="PKM.AltForm"/> to retrieve for</param>
+        /// <returns>Index the <see cref="PKM.AltForm"/> exists as in the <see cref="PersonalTable"/>.</returns>
         public int FormeIndex(int species, int forme)
         {
             if (forme <= 0) // no forme requested
                 return species;
             if (FormStatsIndex <= 0) // no formes present
                 return species;
-            if (forme > FormeCount) // beyond range of species' formes
+            if (forme >= FormeCount) // beyond range of species' formes
                 return species;
 
             return FormStatsIndex + forme - 1;
@@ -87,7 +111,7 @@
                     case 0: // Male
                         return 0;
                     default:
-                        return (int)(Util.Rand32() % 2);
+                        return (int)(Util.Rand32() & 1);
                 }
             }
         }

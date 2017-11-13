@@ -32,6 +32,7 @@ namespace PKHeX.WinForms
 
             // Populate Grid
             dgv.Rows.Add(cellcount);
+            var locations = SAV.SM ? locationsSM : locationsUSUM;
             for (int i = 0; i < cellcount; i++)
             {
                 if (cells[i] > 2)
@@ -41,12 +42,14 @@ namespace PKHeX.WinForms
                 dgv.Rows[i].Cells[1].Value = locations[i];
                 dgv.Rows[i].Cells[2].Value = states[cells[i]];
             }
+            if (SAV.USUM)
+                L_Cells.Visible = NUD_Cells.Visible = false;
         }
 
-        private const int cellstotal = 0x142/2;
-        private const int cellscollected = 0x152/2;
-        private const int celloffset = 198;
-        private const int cellcount = 95;
+        private const int cellstotal = 161;
+        private const int cellscollected = 169;
+        private const int celloffset = 0xC6;
+        private int cellcount => SAV.USUM ? 100 : 95;
         private readonly string[] states = {"None", "Available", "Received"};
 
         private void B_Save_Click(object sender, EventArgs e)
@@ -92,7 +95,7 @@ namespace PKHeX.WinForms
 
         #region locations -- lazy
 
-        private readonly string[] locations =
+        private readonly string[] locationsSM =
         {
             "Verdant Cave - Trial Site",
             "Ruins of Conflict - Outside",
@@ -189,6 +192,109 @@ namespace PKHeX.WinForms
             "Aether Foundation 1F - Outside (Day)",
             "Aether Foundation 1F - Entrance (Night)",
             "Aether Foundation 1F - Main Building",
+        };
+        private readonly string[] locationsUSUM =
+        {
+            "Hau'oli City (Shopping) Salon Outside",
+            "Hau'oli City (Shopping) MalasadaShop Outside",
+            "Hau'oli City (Shopping) Ilima's House 2F",
+            "Malie City Library 1F",
+            "Hau'oli City (Marina) Outside",
+            "Route 2 SouthEast House",
+            "Hau'oli City (Shopping) Ilima's House Outside",
+            "Hau'oli City (Shopping) CityHall",
+            "Heahea City Hotel 3F",
+            "Route 2 BerryField House",
+            "Route 2 BerryField House Outside",
+            "Royal Avenue NorthEast",
+            "Hau'oli City (Shopping) PokemonCenter Outside",
+            "Royal Avenue South",
+            "Hokulani Observatory Room",
+            "Hokulani Observatory InfoDesk",
+            "Hau'oli City (Shopping) CityHall Outside",
+            "Konikoni City Olivia's JewelryShop 2F",
+            "Heahea City Surfboard Outside",
+            "Po Town SouthWest",
+            "Hano Resort Lobby(BottomLeft water)",
+            "Hau'oli City (Shopping) NorthWest of Police Station",
+            "Hau'oli City (Marina) FerryTerminal Outside",
+            "Route 2 SouthEast House Outside",
+            "Route 2 PokemonCenter Outside",
+            "Heahea City West",
+            "Heahea City Hotel Outside(West)",
+            "Heahea City Hotel Outside(East)",
+            "Heahea City ResearchLab Outside(East)",
+            "Heahea City ResearchLab Outside (South)",
+            "Heahea City GameFreak",
+            "Hokulani Observatory DeadEnd",
+            "Heahea City GameFreak Building 3F",
+            "Heahea City ResearchLab",
+            "Heahea City Hotel 1F",
+            "Royal Dome 2F",
+            "Paniola Town West",
+            "Paniola Town Kiawe's House 1F",
+            "Paniola Town Kiawe's House 2F",
+            "Paniola Ranch NorthWest",
+            "Paniola Ranch SouthEast",
+            "Hano Beach",
+            "Hano Resort South",
+            "Hano Resort Lobby(Back)",
+            "Konikoni City Lighthouse (Diglett's Tunnel)",
+            "Royal Dome 1F",
+            "Route 8 AetherBase Outside",
+            "Route 8 FossilRestorationCenter Outside",
+            "Konikoni City West",
+            "Konikoni City Restaurant 1F",
+            "Iki Town SouthWest",
+            "Hau'oli City (Shopping) Ilima's House SwimPool",
+            "Wela Volcano Park (rocks behind sign)",
+            "Route 5 South of PokemonCenter",
+            "Hano Beach (below Sandygast)",
+            "Malie City (Outer) RecyclePlant Outside",
+            "Malie City FerryTerminal Outside",
+            "Malie City ApparelShop Outside",
+            "Malie City Salon Outside",
+            "Route 16 AetherBase Outside",
+            "Mt.Blush PowerPlant Outside",
+            "Malie City Library 2F",
+            "Malie Garden NorthEast",
+            "Malie City CommunityCenter",
+            "Hokulani Observatory Outside",
+            "Mt.Hokulani",
+            "Mt.Blush PowerPlant",
+            "Route 13",
+            "Route 14 Front of Megamart (Abandoned)",
+            "Route 14 North",
+            "Route 15 islet Surfboard Outside",
+            "Route 17 PoliceStation Outside",
+            "Route 17 PoliceStation",
+            "Po Town PokemonCenter Outside",
+            "Exeggutor Island (under rock)",
+            "Po Town ShadyHouse Outside (East)",
+            "Po Town PokemonCenter",
+            "Po Town ShadyHouse 1F",
+            "Route 13 Motel Outside",
+            "Po Town ShadyHouse 2F Outside",
+            "Route 17 South of PoTown",
+            "Ula'ula Meadow",
+            "Po Town ShadyHouse Outside (West) 1",
+            "Po Town ShadyHouse Outside (West) 2",
+            "Po Town ShadyHouse Outside (West) 3",
+            "Seafolk Village SouthEast Wiscash(Mina's Ship) Outside",
+            "Seafolk Village SouthWest Huntail",
+            "Seafolk Village SouthWest Huntail Outside",
+            "Seafolk Village SouthEast Wiscash (Mina's Ship)",
+            "Seafolk Village West Wailord (Restaurant)",
+            "Seafolk Village East Gyarados",
+            "Poni Wilds SouthEast",
+            "Ancient Poni Path Hapu's House(Kitchen)",
+            "Seafolk Village NorthEast",
+            "Ancient Poni Path Hapu's House(Bedroom)",
+            "Ancient Poni Path SouthWest",
+            "Ancient Poni Path Hapu's House Courtyard",
+            "Ancient Poni Path Hapu's House Outside behind Well",
+            "Ancient Poni Path NorthEast",
+            "Battle Tree Entrance",
         };
 
         #endregion

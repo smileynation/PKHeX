@@ -1354,6 +1354,11 @@
             0,
             0,
             0});
+            this.NUD_Purification.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            -2147483648});
             this.NUD_Purification.Name = "NUD_Purification";
             this.NUD_Purification.Size = new System.Drawing.Size(51, 20);
             this.NUD_Purification.TabIndex = 103;
@@ -1778,12 +1783,10 @@
             this.L_MetTimeOfDay.TabIndex = 10;
             this.L_MetTimeOfDay.Text = "Time of Day:";
             this.L_MetTimeOfDay.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.L_MetTimeOfDay.Visible = false;
             // 
             // CB_MetTimeOfDay
             // 
-            this.CB_MetTimeOfDay.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.SuggestAppend;
-            this.CB_MetTimeOfDay.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.ListItems;
+            this.CB_MetTimeOfDay.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.CB_MetTimeOfDay.DropDownWidth = 150;
             this.CB_MetTimeOfDay.FormattingEnabled = true;
             this.CB_MetTimeOfDay.Items.AddRange(new object[] {
@@ -1796,9 +1799,6 @@
             this.CB_MetTimeOfDay.Name = "CB_MetTimeOfDay";
             this.CB_MetTimeOfDay.Size = new System.Drawing.Size(126, 21);
             this.CB_MetTimeOfDay.TabIndex = 11;
-            this.CB_MetTimeOfDay.Visible = false;
-            this.CB_MetTimeOfDay.SelectedIndexChanged += new System.EventHandler(this.ValidateComboBox2);
-            this.CB_MetTimeOfDay.Validating += new System.ComponentModel.CancelEventHandler(this.ValidateComboBox);
             // 
             // Tab_Stats
             // 

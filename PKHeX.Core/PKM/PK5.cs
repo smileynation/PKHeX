@@ -3,6 +3,7 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
+    /// <summary> Generation 5 <see cref="PKM"/> format. </summary>
     public class PK5 : PKM, IRibbonSetEvent3, IRibbonSetEvent4, IRibbonSetUnique3, IRibbonSetUnique4, IRibbonSetCommon3, IRibbonSetCommon4
     {
         public static readonly byte[] ExtraBytes =
@@ -274,7 +275,7 @@ namespace PKHeX.Core
         public override int MaxBallID => Legal.MaxBallID_5;
         public override int MaxGameID => Legal.MaxGameID_5; // B2
         public override int MaxIV => 31;
-        public override int MaxEV => 252;
+        public override int MaxEV => 255;
         public override int OTLength => 7;
         public override int NickLength => 10;
 
@@ -310,7 +311,7 @@ namespace PKHeX.Core
                 else pk6.AbilityNumber = Gen5 ? 1 << (int)(PID >> 16 & 1) : 1 << (int)(PID & 1);
             }
             pk6.Markings = Markings;
-            pk6.Language = Math.Max(1, Language); // Hacked or Bad IngameTrade (Japanese B/W)
+            pk6.Language = Math.Max((int)LanguageID.Japanese, Language); // Hacked or Bad IngameTrade (Japanese B/W)
 
             pk6.CNT_Cool = CNT_Cool;
             pk6.CNT_Beauty = CNT_Beauty;

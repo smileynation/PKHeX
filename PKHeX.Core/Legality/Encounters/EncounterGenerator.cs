@@ -84,19 +84,27 @@ namespace PKHeX.Core
         private static IEnumerable<IEncounterable> GetEncounters4(PKM pkm, LegalInfo info)
         {
             info.PIDIV = MethodFinder.Analyze(pkm);
-            var deferred = new List<IEncounterable>();
+            var deferredPIDIV = new List<IEncounterable>();
+            var deferredEType = new List<IEncounterable>();
+
             foreach (var z in GenerateRawEncounters4(pkm))
             {
-                if (info.PIDIV.Type.IsCompatible4(z, pkm))
-                    yield return z;
+                if (!info.PIDIV.Type.IsCompatible4(z, pkm))
+                    deferredPIDIV.Add(z);
+                else if (!IsEncounterTypeMatch(z, pkm.EncounterType))
+                    deferredEType.Add(z);
                 else
-                    deferred.Add(z);
+                    yield return z;
             }
-            if (deferred.Count == 0)
+
+            foreach (var z in deferredEType)
+                yield return z;
+
+            if (deferredPIDIV.Count == 0)
                 yield break;
 
             info.PIDIVMatches = false;
-            foreach (var z in deferred)
+            foreach (var z in deferredPIDIV)
                 yield return z;
         }
         private static IEnumerable<GBEncounterData> GenerateRawEncounters12(PKM pkm, GameVersion game)
@@ -131,8 +139,7 @@ namespace PKHeX.Core
                 if (s.Version == GameVersion.EventsGBGen2 && s.Species != 251)
                 {
                     // no Gen2 events outside of Japan besides Celebi
-                    var jp = (pkm as PK2)?.Japanese ?? (pkm as PK1)?.Japanese;
-                    if (jp == true)
+                    if (pkm.Japanese)
                         deferred.Add(s);
                     continue;
                 }
@@ -179,18 +186,9 @@ namespace PKHeX.Core
             var deferred = new List<GBEncounterData>();
             while (g2i.PeekIsNext() || g1i.PeekIsNext())
             {
-                PeekEnumerator<GBEncounterData> move;
-                if (g1i.PeekIsNext())
-                {
-                    if (g2i.PeekIsNext())
-                        move = g1i.Peek().Type > g2i.Peek().Type ? g1i : g2i;
-                    else
-                        move = g1i;
-                }
-                else
-                    move = g2i;
-
+                var move = GetPreferredGBIterator(g1i, g2i);
                 var obj = move.Peek();
+
                 if (obj.Generation == 1 && obj.Encounter is EncounterTrade && !IsEncounterTrade1Valid(pkm))
                     deferred.Add(obj);
                 else
@@ -214,6 +212,21 @@ namespace PKHeX.Core
                         yield return z;
             }
         }
+        /// <summary>
+        /// Gets the preferred iterator from a pair of <see cref="GBEncounterData"/> iterators based on the highest value <see cref="GBEncounterData.Type"/>.
+        /// </summary>
+        /// <param name="g1i">Generation 1 Iterator</param>
+        /// <param name="g2i">Generation 2 Iterator</param>
+        /// <returns>Preferred iterator </returns>
+        private static PeekEnumerator<GBEncounterData> GetPreferredGBIterator(PeekEnumerator<GBEncounterData> g1i, PeekEnumerator<GBEncounterData> g2i)
+        {
+            if (!g1i.PeekIsNext())
+                return g2i;
+            if (!g2i.PeekIsNext())
+                return g1i;
+            return g1i.Peek().Type > g2i.Peek().Type ? g1i : g2i;
+        }
+
         private static IEnumerable<IEncounterable> GenerateRawEncounters(PKM pkm)
         {
             int ctr = 0;
@@ -252,10 +265,10 @@ namespace PKHeX.Core
         }
         private static IEnumerable<IEncounterable> GenerateRawEncounters4(PKM pkm)
         {
-            int ctr = 0;
             bool wasEvent = pkm.WasEvent || pkm.WasEventEgg; // egg events?
             if (wasEvent)
             {
+                int ctr = 0;
                 foreach (var z in GetValidGifts(pkm))
                 { yield return z; ++ctr; }
                 if (ctr != 0) yield break;
@@ -263,7 +276,7 @@ namespace PKHeX.Core
             if (pkm.WasEgg)
             {
                 foreach (var z in GenerateEggs(pkm))
-                { yield return z; ++ctr; }
+                    yield return z;
             }
 
             var deferred = new List<IEncounterable>();
@@ -274,17 +287,12 @@ namespace PKHeX.Core
                 if (z.Gift && pkm.Ball != 4)
                     deferred.Add(z);
                 else
-                {
-                    yield return z; ++ctr;
-                } 
+                    yield return z;
             }
-            // if (ctr != 0) yield break;
-            foreach (var z in GetValidWildEncounters(pkm))
-            { yield return z; ++ctr; }
-            if (ctr != 0 && pkm.HasOriginalMetLocation && pkm.TID != 1000) yield break; // EncounterTrade abra/gengar will match wild slots
             foreach (var z in GetValidEncounterTrades(pkm))
-            { yield return z; ++ctr; }
-            if (ctr != 0) yield break;
+                yield return z;
+            foreach (var z in GetValidWildEncounters(pkm))
+                yield return z;
 
             // do static encounters if they were deferred to end, spit out any possible encounters for invalid pkm
             if (safariSport)
@@ -313,26 +321,19 @@ namespace PKHeX.Core
             foreach (var z in GetValidEncounterTrades(pkm))
                 yield return z;
 
+            if (pkm.Version != 15) // no eggs in C/XD
+            foreach (var z in GenerateEggs(pkm))
+                yield return z;
+
             // do static encounters if they were deferred to end, spit out any possible encounters for invalid pkm
             if (safari)
             foreach (var z in GetValidStaticEncounter(pkm))
                 yield return z;
-
-            if (pkm.Version == 15)
-                yield break; // no eggs in C/XD
-
-            foreach (var z in GenerateEggs(pkm))
-                yield return z;
-
             foreach (var z in deferred)
                 yield return z;
         }
 
         // EncounterStatic
-        private static bool IsEncounterTypeMatch(IEncounterable e, int type)
-        {
-            return e is EncounterStaticTyped t ? t.TypeEncounter.Contains(type) : type == 0;
-        }
         private static bool IsValidCatchRatePK1(EncounterStatic e, PK1 pk1)
         {
             var catch_rate = pk1.Catch_Rate;
@@ -376,31 +377,9 @@ namespace PKHeX.Core
                 yield break;
 
             // Back Check against pkm
-            var enc = GetMatchingStaticEncounters(pkm, poss, lvl).ToList();
-
-            // Filter for encounter types; type is cleared on 6->7 transfer
-            if (!pkm.Gen4 || pkm.Format >= 7)
-            {
-                foreach (var e in enc)
-                    yield return e;
-                yield break;
-            }
-
-            // Yield out if type matches, else defer to end if no matches were yielded
-            int ctr = 0;
-            int type = pkm.EncounterType;
-            var pass = new List<EncounterStatic>();
-            foreach (var e in enc)
-            {
-                if (IsEncounterTypeMatch(e, type))
-                { yield return e; ++ctr; }
-                else pass.Add(e);
-            }
-            if (ctr != 0)
-                yield break;
-
-            foreach (var e in pass)
-                yield return e;
+            var enc = GetMatchingStaticEncounters(pkm, poss, lvl);
+            foreach (var z in enc)
+                yield return z;
         }
         private static IEnumerable<EncounterStatic> GetMatchingStaticEncounters(PKM pkm, IEnumerable<EncounterStatic> poss, int lvl)
         {
@@ -545,9 +524,7 @@ namespace PKHeX.Core
             bool IsSafariBall = pkm.Ball == 5;
             bool IsSportsBall = pkm.Ball == 0x18;
             bool IsHidden = pkm.AbilityNumber == 4; // hidden Ability
-            int gen = pkm.GenNumber;
             int species = pkm.Species;
-            bool CheckEncounterType = gen == 4 && pkm.Format != 7;
 
             var deferred = new List<EncounterSlot>();
             foreach (EncounterSlot slot in s)
@@ -558,7 +535,6 @@ namespace PKHeX.Core
                 else if (IsHidden ^ IsHiddenAbilitySlot(slot)) { } // ability mismatch
                 else if (IsSafariBall ^ IsSafariSlot(slot.Type)) { } // Safari Zone only ball
                 else if (IsSportsBall ^ slot.Type == SlotType.BugContest) { } // BCC only ball
-                else if (CheckEncounterType && !slot.TypeEncounter.Contains(pkm.EncounterType)) { } // incorrect encounter type
                 else
                 {
                     yield return slot;
@@ -596,69 +572,90 @@ namespace PKHeX.Core
             if (lvl < 0)
                 lvl = GetMinLevelEncounter(pkm);
             if (lvl <= 0)
-                yield break;
-
-            int gen = pkm.GenNumber;
-            int fluteBoost = gen < 3 ? 0 : 4;
-            const int dexnavBoost = 30;
-
-            int df = DexNav ? fluteBoost : 0;
-            int dn = DexNav ? fluteBoost + dexnavBoost : 0;
+                return Enumerable.Empty<EncounterSlot>();
 
             var maxspeciesorigin = -1;
             if (gameSource == GameVersion.RBY) maxspeciesorigin = MaxSpeciesID_1;
             else if (GameVersion.GSC.Contains(gameSource)) maxspeciesorigin = MaxSpeciesID_2;
 
             // Get Valid levels
-            IEnumerable<DexLevel> vs = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: ignoreLevel ? 100 : -1, skipChecks: ignoreLevel);
+            var vs = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: ignoreLevel ? 100 : -1, skipChecks: ignoreLevel);
             if (!FilterGBSlotsCatchRate(pkm, ref vs, out GameVersion Gen1Version, out bool RBDragonair))
-                yield break;
+                return Enumerable.Empty<EncounterSlot>();
+
+            int gen = pkm.GenNumber;
+            int fluteBoost = gen < 3 ? 0 : 4;
+            const int dexnavBoost = 30;
+            int df = DexNav ? fluteBoost : 0;
+            int dn = DexNav ? fluteBoost + dexnavBoost : 0;
 
             // Get slots where pokemon can exist with respect to the evolution chain
-            IEnumerable<EncounterSlot> slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && (ignoreLevel || evo.Level >= slot.LevelMin - df)));
+            var slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && (ignoreLevel || evo.Level >= slot.LevelMin - df)));
+            // Get slots where pokemon can exist with respect to level constraints
+            var encounterSlots = GetSlotsFilterByLevel(pkm, lvl, ignoreLevel, slots, df, dn);
 
-            List<EncounterSlot> encounterSlots;
-            if (ignoreLevel)
-                encounterSlots = slots.ToList();
-            else if (pkm.HasOriginalMetLocation)
-                encounterSlots = slots.Where(slot => slot.LevelMin - df <= lvl && lvl <= slot.LevelMax + (slot.Permissions.AllowDexNav ? dn : df)).ToList();
-            else // check for any less than current level
-                encounterSlots = slots.Where(slot => slot.LevelMin <= lvl).ToList();
-
+            // Return enumerable of slots pkm might have originated from
             if (gen <= 2)
-            {
-                var gbslots = FilterGBSlots(pkm, gen, Gen1Version, encounterSlots, RBDragonair);
-                foreach (var s in gbslots.OrderBy(slot => slot.LevelMin))
-                    yield return s;
-                yield break;
-            }
+                return GetFilteredSlots12(pkm, gen, Gen1Version, encounterSlots, RBDragonair).OrderBy(slot => slot.LevelMin); // prefer lowest levels
+            if (gen <= 5)
+                return GetFilteredSlotsByForm(pkm, encounterSlots);
+            if (DexNav && gen == 6)
+                return GetFilteredSlots6DexNav(pkm, lvl, encounterSlots, fluteBoost);
+            return GetFilteredSlots67(pkm, encounterSlots);
+        }
+        private static List<EncounterSlot> GetSlotsFilterByLevel(PKM pkm, int lvl, bool ignoreLevel, IEnumerable<EncounterSlot> slots, int df, int dn)
+        {
+            if (ignoreLevel)
+                return slots.ToList();
+            if (pkm.HasOriginalMetLocation)
+                return slots.Where(slot => slot.LevelMin - df <= lvl && lvl <= slot.LevelMax + (slot.Permissions.AllowDexNav ? dn : df)).ToList();
+            // check for any less than current level
+            return slots.Where(slot => slot.LevelMin <= lvl).ToList();
+        }
+        private static IEnumerable<EncounterSlot> GetFilteredSlotsByForm(PKM pkm, IEnumerable<EncounterSlot> encounterSlots)
+        {
+            return WildForms.Contains(pkm.Species)
+                ? encounterSlots.Where(slot => slot.Form == pkm.AltForm)
+                : encounterSlots;
+        }
+        private static IEnumerable<EncounterSlot> GetFilteredSlots67(PKM pkm, IReadOnlyCollection<EncounterSlot> encounterSlots)
+        {
+            IEnumerable<EncounterSlot> slotdata;
+            int species = pkm.Species;
+            int form = pkm.AltForm;
 
+            if (AlolanVariantEvolutions12.Contains(species)) // match form if same species, else form 0.
+                slotdata = encounterSlots.Where(slot => species == slot.Species ? slot.Form == form : slot.Form == 0);
+            else if (WildForms.Contains(species) || AlolanOriginForms.Contains(species)) // match slot form
+                slotdata = encounterSlots.Where(slot => slot.Form == form);
+            else
+                slotdata = encounterSlots; // no form checking
+
+            foreach (var z in slotdata)
+                yield return z;
+
+            // Filter for Form Specific
             // Pressure Slot
             EncounterSlot slotMax = encounterSlots.OrderByDescending(slot => slot.LevelMax).FirstOrDefault();
+            if (slotMax == null)
+                yield break; // yield break;
 
-            if (gen >= 6 && !DexNav)
+            if (AlolanVariantEvolutions12.Contains(species)) // match form if same species, else form 0.
             {
-                var slotdata = WildForms.Contains(pkm.Species)
-                    ? encounterSlots.Where(slot => slot.Form == pkm.AltForm)
-                    : encounterSlots;
-
-                foreach (var z in slotdata)
-                    yield return z;
-
-                // Filter for Form Specific
-                if (slotMax != null)
-                    yield return getPressureSlot(slotMax);
-                yield break;
+                if (species == slotMax.Species ? slotMax.Form == form : slotMax.Form == 0)
+                    yield return GetPressureSlot(slotMax, pkm);
             }
-
-            IEnumerable<EncounterSlot> formMatchSlots = encounterSlots.Where(slot => !WildForms.Contains(pkm.Species) || slot.Form == pkm.AltForm);
-            if (gen <= 5)
+            else if (WildForms.Contains(species) || AlolanOriginForms.Contains(species)) // match slot form
             {
-                foreach (var z in formMatchSlots)
-                    yield return z;
-                yield break;
+                if (slotMax.Form == form)
+                    yield return GetPressureSlot(slotMax, pkm);
             }
-
+            else
+                yield return GetPressureSlot(slotMax, pkm);
+        }
+        private static IEnumerable<EncounterSlot> GetFilteredSlots6DexNav(PKM pkm, int lvl, IReadOnlyCollection<EncounterSlot> encounterSlots, int fluteBoost)
+        {
+            var formMatchSlots = GetFilteredSlotsByForm(pkm, encounterSlots);
             foreach (EncounterSlot s in formMatchSlots)
             {
                 bool nav = s.Permissions.AllowDexNav && (pkm.RelearnMove1 != 0 || pkm.AbilityNumber == 4);
@@ -673,17 +670,19 @@ namespace PKHeX.Core
                     slot.Permissions.DexNav = true;
                 yield return slot;
             }
+            // Pressure Slot
+            EncounterSlot slotMax = encounterSlots.OrderByDescending(slot => slot.LevelMax).FirstOrDefault();
             if (slotMax != null)
-                yield return getPressureSlot(slotMax);
-
-            EncounterSlot getPressureSlot(EncounterSlot s)
-            {
-                var max = s.Clone();
-                max.Permissions.Pressure = true;
-                max.Form = pkm.AltForm;
-                return max;
-            }
+                yield return GetPressureSlot(slotMax, pkm);
         }
+        private static EncounterSlot GetPressureSlot(EncounterSlot s, PKM pkm)
+        {
+            var max = s.Clone();
+            max.Permissions.Pressure = true;
+            max.Form = pkm.AltForm;
+            return max;
+        }
+
         private static bool FilterGBSlotsCatchRate(PKM pkm, ref IEnumerable<DexLevel> vs, out GameVersion Gen1Version, out bool RBDragonair)
         {
             RBDragonair = false;
@@ -734,7 +733,7 @@ namespace PKHeX.Core
                     return true;
             }
         }
-        private static IEnumerable<EncounterSlot> FilterGBSlots(PKM pkm, int gen, GameVersion Gen1Version, IEnumerable<EncounterSlot> slots, bool RBDragonair)
+        private static IEnumerable<EncounterSlot> GetFilteredSlots12(PKM pkm, int gen, GameVersion Gen1Version, IEnumerable<EncounterSlot> slots, bool RBDragonair)
         {
             switch (gen)
             {
@@ -794,7 +793,7 @@ namespace PKHeX.Core
                 case 6:
                     return Encounters6.LinkGifts6.Where(g => g.Species == pkm.Species && g.Level == pkm.Met_Level);
                 default:
-                    return new EncounterLink[0];
+                    return Enumerable.Empty<EncounterLink>();
             }
         }
 
@@ -899,9 +898,9 @@ namespace PKHeX.Core
             }
 
             int lang = pkm.Language;
-            if (lang == 6) // invalid language
+            if (lang == (int)LanguageID.UNUSED_6) // invalid language
                 yield break;
-            if (lang == 0 && (pkm.Format != 5 || !pkm.BW)) // Japanese trades in BW have no language ID
+            if (lang == (int)LanguageID.Hacked && (pkm.Format != 5 || !pkm.BW)) // Japanese trades in BW have no language ID
                 yield break;
 
             int lvl = GetMinLevelEncounter(pkm);
@@ -991,7 +990,7 @@ namespace PKHeX.Core
                 case 7:
                     return GetMatchingWC7(pkm, MGDB_G7);
                 default:
-                    return new List<MysteryGift>();
+                    return Enumerable.Empty<MysteryGift>();
             }
         }
         private static IEnumerable<MysteryGift> GetMatchingWC3(PKM pkm, IEnumerable<MysteryGift> DB)
@@ -1022,7 +1021,7 @@ namespace PKHeX.Core
 
             if (IsRangerManaphy(pkm))
             {
-                if (pkm.Language != 8) // never korean
+                if (pkm.Language != (int)LanguageID.Korean) // never korean
                     yield return new PGT { Data = { [0] = 7, [8] = 1 } };
                 yield break;
             }
@@ -1078,9 +1077,14 @@ namespace PKHeX.Core
                 if (!GetIsMatchWC6(pkm, wc, vs))
                     continue;
 
-                if (wc.CardID == 0525 && wc.IV_HP == 0xFE) // 3IV collision, yield the non 3IV first
-                    deferred.Add(wc);
-                else if (wc.Species == pkm.Species) // best match
+                switch (wc.CardID)
+                {
+                    case 0525 when wc.IV_HP == 0xFE: // Diancie was distributed with no IV enforcement & 3IVs
+                    case 0504 when wc.RibbonClassic != ((IRibbonSetEvent4)pkm).RibbonClassic: // magmar with/without classic
+                        deferred.Add(wc);
+                        continue;
+                }
+                if (wc.Species == pkm.Species) // best match
                     yield return wc;
                 else
                     deferred.Add(wc);
@@ -1396,9 +1400,7 @@ namespace PKHeX.Core
         }
         internal static bool IsSafariSlot(SlotType t)
         {
-            return t == SlotType.Grass_Safari || t == SlotType.Surf_Safari ||
-                   t == SlotType.Rock_Smash_Safari || t == SlotType.Pokeradar_Safari ||
-                   t == SlotType.Old_Rod_Safari || t == SlotType.Good_Rod_Safari || t == SlotType.Super_Rod_Safari;
+            return t.HasFlag(SlotType.Safari);
         }
         internal static bool IsDexNavValid(PKM pkm)
         {
@@ -1408,6 +1410,18 @@ namespace PKHeX.Core
             IEnumerable<EncounterArea> locs = GetDexNavAreas(pkm);
             var d_areas = locs.Select(loc => GetValidEncounterSlots(pkm, loc, DexNav: true));
             return d_areas.Any(slots => slots.Any(slot => slot.Permissions.AllowDexNav && slot.Permissions.DexNav));
+        }
+        private static bool IsEncounterTypeMatch(IEncounterable e, int type)
+        {
+            switch (e)
+            {
+                case EncounterStaticTyped t:
+                    return t.TypeEncounter.Contains(type);
+                case EncounterSlot w:
+                    return w.TypeEncounter.Contains(type);
+                default:
+                    return type == 0;
+            }
         }
         internal static EncounterArea GetCaptureLocation(PKM pkm)
         {
@@ -1433,7 +1447,19 @@ namespace PKHeX.Core
                     return GetStatic(pkm, table, lvl: 100, skip: true).FirstOrDefault();
             }
         }
-        internal static EncounterStatic GetRBYStaticTransfer(int species, int pkmMetLevel)
+        internal static bool IsVCStaticTransferEncounterValid(PKM pkm, EncounterStatic e)
+        {
+            return pkm.Met_Location == e.Location && pkm.Egg_Location == e.EggLocation;
+        }
+        internal static IEncounterable GetVCStaticTransferEncounter(PKM pkm)
+        {
+            if (pkm.VC1)
+                return GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
+            if (pkm.VC2)
+                return GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
+            return new EncounterInvalid(pkm);
+        }
+        private static EncounterStatic GetRBYStaticTransfer(int species, int pkmMetLevel)
         {
             return new EncounterStatic
             {
@@ -1449,7 +1475,7 @@ namespace PKHeX.Core
                 Version = GameVersion.RBY
             };
         }
-        internal static EncounterStatic GetGSStaticTransfer(int species, int pkmMetLevel)
+        private static EncounterStatic GetGSStaticTransfer(int species, int pkmMetLevel)
         {
             return new EncounterStatic
             {

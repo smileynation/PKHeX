@@ -3,6 +3,9 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Object representing a <see cref="PKM"/>'s data and derived properties.
+    /// </summary>
     public abstract class PKM
     {
         public static readonly string[] Extensions = PKX.GetPKMExtensions();
@@ -139,9 +142,9 @@ namespace PKHeX.Core
         public abstract int Met_Location { get; set; }
         public abstract int Egg_Location { get; set; }
         public abstract int OT_Friendship { get; set; }
-        public virtual bool Japanese => Language == 1;
-        public virtual bool Korean => Language == 8;
-        public virtual bool Chinese => Language == 9 || Language == 10;
+        public virtual bool Japanese => Language == (int)LanguageID.Japanese;
+        public virtual bool Korean => Language == (int)LanguageID.Korean;
+        public virtual bool Chinese => Language == (int)LanguageID.ChineseS || Language == (int)LanguageID.ChineseT;
 
         // Future Properties
         public virtual int Met_Year { get => 0; set { } }
@@ -229,13 +232,8 @@ namespace PKHeX.Core
             {
                 // Check to see if date is valid
                 if (!Util.IsDateValid(2000 + Egg_Year, Egg_Month, Egg_Day))
-                {
                     return null;
-                }
-                else
-                {
-                    return new DateTime(2000 + Egg_Year, Egg_Month, Egg_Day);
-                }
+                return new DateTime(2000 + Egg_Year, Egg_Month, Egg_Day);
             }
             set
             {
@@ -634,10 +632,10 @@ namespace PKHeX.Core
         {
             ReorderMoves();
 
-            if (Move1 == 0) { Move1_PP = 0; Move1_PPUps = 0; }
-            if (Move2 == 0) { Move2_PP = 0; Move2_PPUps = 0; }
-            if (Move3 == 0) { Move3_PP = 0; Move3_PPUps = 0; }
-            if (Move4 == 0) { Move4_PP = 0; Move4_PPUps = 0; }
+            if (Move1 == 0) Move1_PP = Move1_PPUps = 0;
+            if (Move2 == 0) Move2_PP = Move2_PPUps = 0;
+            if (Move3 == 0) Move3_PP = Move3_PPUps = 0;
+            if (Move4 == 0) Move4_PP = Move4_PPUps = 0;
         }
 
         /// <summary>
@@ -876,17 +874,31 @@ namespace PKHeX.Core
             for (int i = 0; i < 6; i++)
                 ivs[i] = (int)(Util.Rand32() & MaxIV);
 
-            bool IV3 = GenNumber >= 6 && (Legal.Legends.Contains(Species) || Legal.SubLegends.Contains(Species));
-            if (IV3)
+            int count = GetFlawlessIVCount();
+            if (count != 0)
             {
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < count; i++)
                     ivs[i] = MaxIV;
                 Util.Shuffle(ivs); // Randomize IV order
             }
+
             IVs = ivs;
             return ivs;
         }
-        
+
+        /// <summary>
+        /// Gets the amount of flawless IVs that the <see cref="PKM"/> should have.
+        /// </summary>
+        /// <returns>Count of IVs that should be max.</returns>
+        public int GetFlawlessIVCount()
+        {
+            if (GenNumber >= 6 && (Legal.Legends.Contains(Species) || Legal.SubLegends.Contains(Species)))
+                return 3;
+            if (VC)
+                return Species == 151 || Species == 251 ? 5 : 3;
+            return 0;
+        }
+
         /// <summary>
         /// Converts a <see cref="XK3"/> or <see cref="PK3"/> to <see cref="CK3"/>.
         /// </summary>

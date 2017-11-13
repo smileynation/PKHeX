@@ -85,7 +85,7 @@ namespace PKHeX.Core
 
             return new CheckResult(Severity.Valid, V68, CheckIdentifier.Encounter);
         }
-        private static CheckResult VerifyWildEncounterCrystal(PKM pkm, EncounterSlot1 encounter)
+        private static CheckResult VerifyWildEncounterCrystal(PKM pkm, EncounterSlot encounter)
         {
             switch (encounter.Type)
             {
@@ -108,7 +108,7 @@ namespace PKHeX.Core
 
             return new CheckResult(Severity.Valid, V68, CheckIdentifier.Encounter);
         }
-        private static CheckResult VerifyWildEncounterCrystalHeadbutt(PKM pkm, EncounterSlot1 encounter)
+        private static CheckResult VerifyWildEncounterCrystalHeadbutt(PKM pkm, EncounterSlot encounter)
         {
             var Area = Legal.GetCrystalTreeArea(encounter);
             if (Area == null)  // Failsafe, every area with headbutt encounters has a tree area
@@ -190,7 +190,7 @@ namespace PKHeX.Core
         private static CheckResult VerifyEncounterEgg4(PKM pkm)
         {
             if (pkm.Format == 4)
-                return VerifyEncounterEggLevelLoc(pkm, 0, Legal.Met_HGSS_0);
+                return VerifyEncounterEggLevelLoc(pkm, 0, Legal.Met_HGSS_Hatch);
             if (pkm.IsEgg)
                 return new CheckResult(Severity.Invalid, V57, CheckIdentifier.Encounter);
             // transferred
@@ -288,9 +288,9 @@ namespace PKHeX.Core
             switch (pkm.GenNumber)
             {
                 case 3:
-                    if (s is EncounterStaticShadow w && w.EReader && pkm.Language != 1) // Non-JP E-reader Pokemon 
+                    if (s is EncounterStaticShadow w && w.EReader && pkm.Language != (int)LanguageID.Japanese) // Non-JP E-reader Pokemon 
                         return new CheckResult(Severity.Invalid, V406, CheckIdentifier.Encounter);
-                    if (pkm.Species == 151 && s.Location == 201 && pkm.Language != 1) // Non-JP Mew (Old Sea Map)
+                    if (pkm.Species == 151 && s.Location == 201 && pkm.Language != (int)LanguageID.Japanese) // Non-JP Mew (Old Sea Map)
                         return new CheckResult(Severity.Invalid, V353, CheckIdentifier.Encounter);
                     break;
                 case 4:
@@ -300,13 +300,19 @@ namespace PKHeX.Core
                         return new CheckResult(Severity.Invalid, V383, CheckIdentifier.Encounter);
                     if (pkm.Species == 492 && s.Location == 063 && !pkm.Pt) // DP Shaymin
                         return new CheckResult(Severity.Invalid, V354, CheckIdentifier.Encounter);
-                    if (s.Location == 193 && (s as EncounterStaticTyped)?.TypeEncounter == EncounterType.Surfing_Fishing) // Roaming pokemon surfin in Johto Route 45
+                    if (s.Location == 193 && (s as EncounterStaticTyped)?.TypeEncounter == EncounterType.Surfing_Fishing) // Roaming pokemon surfing in Johto Route 45
                         return new CheckResult(Severity.Invalid, V384, CheckIdentifier.Encounter);
                     break;
                 case 7:
                     if (s.EggLocation == 60002 && pkm.RelearnMoves.Any(m => m != 0))
                         return new CheckResult(Severity.Invalid, V74, CheckIdentifier.RelearnMove); // not gift egg
                     break;
+            }
+            if (s.EggEncounter && !pkm.IsEgg) // hatched
+            {
+                var hatchCheck = VerifyEncounterEgg(pkm, null);
+                if (!hatchCheck.Valid)
+                    return hatchCheck;
             }
 
             return new CheckResult(Severity.Valid, V75, CheckIdentifier.Encounter);
@@ -359,7 +365,7 @@ namespace PKHeX.Core
             }
 
             // Strict matching already performed by EncounterGenerator. May be worth moving some checks here to better flag invalid gifts.
-            return new CheckResult(Severity.Valid, string.Format(V21, MatchedGift.CardHeader, ""), CheckIdentifier.Encounter);
+            return new CheckResult(Severity.Valid, string.Format(V21, MatchedGift.CardHeader, string.Empty), CheckIdentifier.Encounter);
         }
     }
 }

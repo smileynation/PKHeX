@@ -3,6 +3,9 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generation 2 <see cref="SaveFile"/> object.
+    /// </summary>
     public sealed class SAV2 : SaveFile
     {
         public override string BAKName => $"{FileName} [{OT} ({Version}) - {PlayTimeString}].bak";
@@ -20,7 +23,7 @@ namespace PKHeX.Core
         {
             Data = data == null ? new byte[SaveUtil.SIZE_G2RAW_U] : (byte[])data.Clone();
             BAK = (byte[])Data.Clone();
-            Exportable = !Data.SequenceEqual(new byte[Data.Length]);
+            Exportable = !Data.All(z => z == 0);
 
             if (data == null)
                 Version = GameVersion.C;
@@ -222,8 +225,8 @@ namespace PKHeX.Core
         public override int MaxIV => 15;
         public override int Generation => 2;
         protected override int GiftCountMax => 0;
-        public override int OTLength => Japanese ? 5 : 7;
-        public override int NickLength => Japanese ? 5 : 10;
+        public override int OTLength => Japanese || Korean ? 5 : 7;
+        public override int NickLength => Japanese || Korean ? 5 : 10;
         public override int BoxSlotCount => Japanese ? 30 : 20;
 
         public override bool HasParty => true;
@@ -256,8 +259,8 @@ namespace PKHeX.Core
 
         public override string OT
         {
-            get => GetString(Offsets.Trainer1 + 2, OTLength);
-            set => SetString(value, OTLength).CopyTo(Data, Offsets.Trainer1 + 2);
+            get => GetString(Offsets.Trainer1 + 2, (Korean ? 2 : 1) * OTLength);
+            set => SetString(value, (Korean ? 2 : 1) * OTLength).CopyTo(Data, Offsets.Trainer1 + 2);
         }
         public override int Gender
         {
@@ -479,29 +482,14 @@ namespace PKHeX.Core
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-
-            if (seen)
-                Data[Offsets.PokedexSeen + ofs] |= bitval;
-            else
-                Data[Offsets.PokedexSeen + ofs] &= (byte)~bitval;
+            SetFlag(Offsets.PokedexSeen + ofs, bit & 7, seen);
         }
         public override void SetCaught(int species, bool caught)
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-
-            if (!caught)
-            {
-                // Clear the Captured Flag
-                Data[Offsets.PokedexCaught + ofs] &= (byte)~bitval;
-                return;
-            }
-
-            // Set the Captured Flag
-            Data[Offsets.PokedexCaught + ofs] |= bitval;
-            if (species == 201)
+            SetFlag(Offsets.PokedexCaught + ofs, bit & 7, caught);
+            if (caught && species == 201)
                 SetUnownFormFlags();
         }
         private void SetUnownFormFlags()
@@ -514,17 +502,13 @@ namespace PKHeX.Core
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-            // Get the Seen Flag
-            return (Data[Offsets.PokedexSeen + ofs] & bitval) != 0;
+            return GetFlag(Offsets.PokedexSeen + ofs, bit & 7);
         }
         public override bool GetCaught(int species)
         {
             int bit = species - 1;
             int ofs = bit >> 3;
-            byte bitval = (byte)(1 << (bit & 7));
-            // Get the Caught Flag
-            return (Data[Offsets.PokedexCaught + ofs] & bitval) != 0;
+            return GetFlag(Offsets.PokedexCaught + ofs, bit & 7);
         }
 
         // Misc

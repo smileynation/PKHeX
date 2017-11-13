@@ -4,6 +4,9 @@ using static PKHeX.Core.EncounterUtil;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generation 5 Encounters
+    /// </summary>
     internal static class Encounters5
     {
         internal static readonly EncounterArea[] SlotsB, SlotsW, SlotsB2, SlotsW2;
@@ -574,6 +577,7 @@ namespace PKHeX.Core
             //Stationary
             new EncounterStatic { Species = 590, Level = 29, Location = 19, }, // Foongus @ Route 6
             new EncounterStatic { Species = 591, Level = 43, Location = 24, }, // Amoonguss @ Route 11
+            new EncounterStatic { Species = 591, Level = 47, Location = 127, }, // Amoonguss @ Route 22
             new EncounterStatic { Species = 593, Level = 40, Location = 71, Ability = 4, Version = GameVersion.B2, Gender = 0,}, // HA Jellicent @ Undella Bay Mon Only
             new EncounterStatic { Species = 593, Level = 40, Location = 71, Ability = 4, Version = GameVersion.W2, Gender = 1,}, // HA Jellicent @ Undella Bay Thurs Only
             new EncounterStatic { Species = 628, Level = 25, Location = 17, Ability = 4, Version = GameVersion.W2, Gender = 0,}, // HA Braviary @ Route 4 Mon Only
@@ -582,7 +586,7 @@ namespace PKHeX.Core
             new EncounterStatic { Species = 637, Level = 65, Location = 35, }, // Volcarona @ Relic Castle
             new EncounterStatic { Species = 558, Level = 42, Location = 141, }, // Crustle @ Seaside Cave
             new EncounterStatic { Species = 612, Level = 60, Location = 147, Shiny = true}, // Haxorus @ Nature Preserve
-            //Stationary Lengerdary
+            //Stationary Legendary
             new EncounterStatic { Species = 377, Level = 65, Location = 150,}, //Regirock @ Rock Peak Chamber
             new EncounterStatic { Species = 378, Level = 65, Location = 151,}, //Regice @ Iceberg Chamber
             new EncounterStatic { Species = 379, Level = 65, Location = 152,}, //Registeel @ Iron Chamber
@@ -629,16 +633,16 @@ namespace PKHeX.Core
 
         internal static readonly EncounterTrade[] TradeGift_BW =
         {
-            new EncounterTrade { Species = 548, Level = 15, Ability = 1, TID = 39922, SID = 00000, OTGender = 1, Gender = 1, IVs = new[] {20,20,20,20,31,20}, Nature = Nature.Modest, Version = GameVersion.B, }, // Petilil
-            new EncounterTrade { Species = 546, Level = 15, Ability = 1, TID = 39922, SID = 00000, OTGender = 1, Gender = 1, IVs = new[] {20,20,20,20,31,20}, Nature = Nature.Modest, Version = GameVersion.W, }, // Cottonee
-            new EncounterTrade { Species = 550, Level = 25, Ability = 1, TID = 27646, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,31,20,20,20,20}, Nature = Nature.Adamant, Version = GameVersion.B, Form = 0, }, // Basculin-Red
-            new EncounterTrade { Species = 550, Level = 25, Ability = 1, TID = 27646, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,31,20,20,20,20}, Nature = Nature.Adamant, Version = GameVersion.W, Form = 1, }, // Basculin-Blue
-            new EncounterTrade { Species = 587, Level = 30, Ability = 1, TID = 11195, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,20,31,20,20,20}, Nature = Nature.Lax, }, // Emolga
-            new EncounterTrade { Species = 479, Level = 60, Ability = 1, TID = 54673, SID = 00000, OTGender = 1, Gender = 2, IVs = new[] {20,20,20,20,20,31}, Nature = Nature.Gentle, }, // Rotom
-            new EncounterTrade { Species = 446, Level = 60, Ability = 2, TID = 40217, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {31,20,20,20,20,20}, Nature = Nature.Serious, }, // Munchlax
+            new EncounterTradePID { Species = 548, Level = 15, Ability = 1, TID = 39922, SID = 00000, OTGender = 1, Gender = 1, IVs = new[] {20,20,20,20,31,20}, PID = 0x64000000, Version = GameVersion.B, }, // Petilil
+            new EncounterTradePID { Species = 546, Level = 15, Ability = 1, TID = 39922, SID = 00000, OTGender = 1, Gender = 1, IVs = new[] {20,20,20,20,31,20}, PID = 0x6400007E, Version = GameVersion.W, }, // Cottonee
+            new EncounterTradePID { Species = 550, Level = 25, Ability = 1, TID = 27646, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,31,20,20,20,20}, PID = 0x9400007F, Version = GameVersion.B, Form = 0, }, // Basculin-Red
+            new EncounterTradePID { Species = 550, Level = 25, Ability = 1, TID = 27646, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,31,20,20,20,20}, PID = 0x9400007F, Version = GameVersion.W, Form = 1, }, // Basculin-Blue
+            new EncounterTradePID { Species = 587, Level = 30, Ability = 1, TID = 11195, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,20,31,20,20,20}, PID = 0xD400007F, }, // Emolga
+            new EncounterTradePID { Species = 479, Level = 60, Ability = 1, TID = 54673, SID = 00000, OTGender = 1, Gender = 2, IVs = new[] {20,20,20,20,20,31}, PID = 0x2A000000, }, // Rotom
+            new EncounterTradePID { Species = 446, Level = 60, Ability = 2, TID = 40217, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {31,20,20,20,20,20}, PID = 0x6200001F, }, // Munchlax
         };
 
-        internal static readonly EncounterTrade[] TradeGift_B2W2 =
+        internal static readonly EncounterTrade[] TradeGift_B2W2_Regular =
         {
             new EncounterTrade { Species = 548, Level = 20, Ability = 2, TID = 65217, SID = 00000, OTGender = 1, Gender = 1, IVs = new[] {20,20,20,20,31,20}, Nature = Nature.Timid, Version = GameVersion.B2, }, // Petilil
             new EncounterTrade { Species = 546, Level = 20, Ability = 1, TID = 05720, SID = 00001, OTGender = 0, Gender = 0, IVs = new[] {20,20,20,20,31,20}, Nature = Nature.Modest, Version = GameVersion.W2, }, // Cottonee
@@ -647,6 +651,9 @@ namespace PKHeX.Core
             new EncounterTrade { Species = 479, Level = 60, Ability = 1, TID = 54673, SID = 00000, OTGender = 1, Gender = 2, IVs = new[] {20,20,20,20,20,31}, Nature = Nature.Calm, }, // Rotom
             new EncounterTrade { Species = 424, Level = 40, Ability = 2, TID = 17074, SID = 00001, OTGender = 1, Gender = 0, IVs = new[] {20,20,20,31,20,20}, Nature = Nature.Jolly, }, // Ambipom
             new EncounterTrade { Species = 065, Level = 40, Ability = 1, TID = 17074, SID = 00001, OTGender = 1, Gender = 0, IVs = new[] {20,20,20,31,20,20}, Nature = Nature.Timid, }, // Alakazam
+        };
+        internal static readonly EncounterTrade[] TradeGift_B2W2_YancyCurtis =
+        {
             // player is male
             new EncounterTrade { Species = 052, Level = 50, Ability = 4, TID = 10303, SID = 00000, OTGender = 1,},
             new EncounterTrade { Species = 202, Level = 50, Ability = 4, TID = 10303, SID = 00000, OTGender = 1,},
@@ -674,6 +681,33 @@ namespace PKHeX.Core
             new EncounterTrade { Species = 327, Level = 50, Ability = 4, TID = 54118, SID = 00000, OTGender = 0,},
             new EncounterTrade { Species = 175, Level = 50, Ability = 4, TID = 54118, SID = 00000, OTGender = 0,},
         };
+        internal static readonly string[] TradeOT_B2W2_F = {null, "ルリ", "Yancy", "Brenda", "Sabine", "Lilì", null, "Belinda", "루리"};
+        internal static readonly string[] TradeOT_B2W2_M = {null, "テツ", "Curtis", "Julien", "Markus", "Dadi", null, "Julián", "철권"};
+        internal static readonly string[][] TradeBW =
+        {
+            new string[0],                       // 0 - None
+            Util.GetStringList("tradebw", "ja"), // 1
+            Util.GetStringList("tradebw", "en"), // 2
+            Util.GetStringList("tradebw", "fr"), // 3
+            Util.GetStringList("tradebw", "it"), // 4
+            Util.GetStringList("tradebw", "de"), // 5
+            new string[0],                       // 6 - None
+            Util.GetStringList("tradebw", "es"), // 7
+            Util.GetStringList("tradebw", "ko"), // 8
+        };
+        internal static readonly string[][] TradeB2W2 =
+        {
+            new string[0],                         // 0 - None
+            Util.GetStringList("tradeb2w2", "ja"), // 1
+            Util.GetStringList("tradeb2w2", "en"), // 2
+            Util.GetStringList("tradeb2w2", "fr"), // 3
+            Util.GetStringList("tradeb2w2", "it"), // 4
+            Util.GetStringList("tradeb2w2", "de"), // 5
+            new string[0],                         // 6 - None
+            Util.GetStringList("tradeb2w2", "es"), // 7
+            Util.GetStringList("tradeb2w2", "ko"), // 8
+        };
+        internal static readonly EncounterTrade[] TradeGift_B2W2 = TradeGift_B2W2_Regular.Concat(TradeGift_B2W2_YancyCurtis).ToArray();
 
         #endregion
         #region Alt Slots
@@ -833,7 +867,7 @@ namespace PKHeX.Core
             // Route 22
             new EncounterSlot{ Species = 279, LevelMin = 40, LevelMax = 45, }, // Peplipper
             new EncounterSlot{ Species = 591, LevelMin = 40, LevelMax = 45, }, // Amoonguss
-            new EncounterSlot{ Species = 619, LevelMin = 50, LevelMax = 55, }, // Mienfoo
+            new EncounterSlot{ Species = 619, LevelMin = 40, LevelMax = 45, }, // Mienfoo
             // Route 23
             new EncounterSlot{ Species = 055, LevelMin = 50, LevelMax = 55, }, // Golduck
             new EncounterSlot{ Species = 207, LevelMin = 50, LevelMax = 55, }, // Gligar

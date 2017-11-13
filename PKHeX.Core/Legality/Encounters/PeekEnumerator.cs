@@ -4,6 +4,10 @@ using System.Collections.Generic;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Iterates a generic collection with the ability to peek into the collection to see if the next element exists.
+    /// </summary>
+    /// <typeparam name="T">Generic Collection Element Type</typeparam>
     public class PeekEnumerator<T> : IEnumerator<T>
     {
         private readonly IEnumerator<T> Enumerator;
@@ -12,6 +16,10 @@ namespace PKHeX.Core
 
         #region IEnumerator Implementation
 
+        /// <summary>
+        /// Advances the enumerator to the next element in the collection.
+        /// </summary>
+        /// <returns>Indication if there are more elements in the collection.</returns>
         public bool MoveNext()
         {
             if (!didPeek)
@@ -19,6 +27,9 @@ namespace PKHeX.Core
             didPeek = false;
             return true;
         }
+        /// <summary>
+        /// Sets the enumerator to its initial position, which is before the first element in the collection.
+        /// </summary>
         public void Reset()
         {
             Enumerator.Reset();
@@ -57,17 +68,12 @@ namespace PKHeX.Core
 
             return peek;
         }
-        public T PeekOrDefault()
-        {
-            return !TryFetchPeek() ? default(T) : peek;
-        }
+        public T PeekOrDefault() => !TryFetchPeek() ? default(T) : peek;
+
         /// <summary>
         /// Checks if a Next element exists
         /// </summary>
         /// <returns>True/False that a Next element exists</returns>
-        public bool PeekIsNext()
-        {
-            return TryFetchPeek();
-        }
+        public bool PeekIsNext() => TryFetchPeek();
     }
 }

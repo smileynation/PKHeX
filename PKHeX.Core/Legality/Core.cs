@@ -431,7 +431,7 @@ namespace PKHeX.Core
             if (pkm.Format == 6 && pkm.Species != 678)
                 form = 0;
 
-            r.AddRange(GetEggMoves(pkm, species, form));
+            r.AddRange(GetEggMoves(pkm, species, form, version));
             if (inheritlvlmoves)
                 r.AddRange(GetRelearnLVLMoves(pkm, species, 100, pkm.AltForm, version));
             return r.Distinct();
@@ -649,7 +649,7 @@ namespace PKHeX.Core
                         var LevelTable = ver == GameVersion.YW ? LevelUpY : LevelUpRB;
                         int index = PersonalTable.RB.GetFormeIndex(species, 0);
                         if (index == 0)
-                            return new int[0];
+                            return Enumerable.Empty<int>();
                         LevelUpMoves = LevelTable[species].GetEncounterMoves(lvl);
                         diff = 4 - LevelUpMoves.Count(z => z != 0);
                         if (diff == 0)
@@ -668,7 +668,7 @@ namespace PKHeX.Core
                         var LevelTable = ver == GameVersion.C ? LevelUpC : LevelUpGS;
                         int index = PersonalTable.C.GetFormeIndex(species, 0);
                         if (index == 0)
-                            return new int[0];
+                            return Enumerable.Empty<int>();
                         LevelUpMoves = LevelTable[species].GetEncounterMoves(lvl);
                         diff = 4 - LevelUpMoves.Count(z => z != 0);
                         if (diff == 0)
@@ -678,7 +678,7 @@ namespace PKHeX.Core
                         break;
                     }
                 default:
-                    return new int[0];
+                    return Enumerable.Empty<int>();
             }
             // Initial Moves could be duplicated in the level up table
             // level up table moves have preference
@@ -918,7 +918,7 @@ namespace PKHeX.Core
                 case GameVersion.US: return StaticUS;
                 case GameVersion.UM: return StaticUM;
 
-                default: return new EncounterStatic[0];
+                default: return Enumerable.Empty<EncounterStatic>();
             }
         }
         internal static IEnumerable<EncounterArea> GetEncounterTable(PKM pkm, GameVersion gameSource = GameVersion.Any)
@@ -969,7 +969,7 @@ namespace PKHeX.Core
                 case GameVersion.US: return SlotsUS;
                 case GameVersion.UM: return SlotsUM;
 
-                default: return new EncounterArea[0];
+                default: return Enumerable.Empty<EncounterArea>();
             }
         }
         private static IEnumerable<EncounterStatic> GetEncounterStaticTableGSC(PKM pkm)
@@ -1014,7 +1014,7 @@ namespace PKHeX.Core
                 case (int)GameVersion.OR:
                     return SlotsO.Where(l => l.Location == pkm.Met_Location);
                 default:
-                    return new EncounterArea[0];
+                    return Enumerable.Empty<EncounterArea>();
             }
         }
 
@@ -1100,7 +1100,7 @@ namespace PKHeX.Core
                 case 3: return FutureEvolutionsGen3;
                 case 4: return FutureEvolutionsGen4;
                 case 5: return FutureEvolutionsGen5;
-                default: return new int[0];
+                default: return Enumerable.Empty<int>();
             }
         }
 
@@ -1157,7 +1157,7 @@ namespace PKHeX.Core
             if (pkm.IsEgg)
                 return false;
 
-            if (pkm.Format >= 7 && EvolveToAlolanForms.Contains(pkm.Species))
+            if (pkm.Format >= 7 && AlolanVariantEvolutions12.Contains(pkm.Species))
                 return pkm.AltForm == 1;
             if (pkm.Species == 678 && pkm.Gender == 1)
                 return pkm.AltForm == 1;
@@ -1172,7 +1172,7 @@ namespace PKHeX.Core
 
             var table = EvolutionTree.GetEvolutionTree(pkm.Format);
             var lineage = table.GetValidPreEvolutions(pkm, maxLevel: 100, skipChecks:true);
-            return lineage.Any(evolution => EvolutionMethod.TradeMethods.Any(method => method == evolution.Flag)); // Trade Evolutions
+            return lineage.Any(evolution => EvolutionMethod.TradeMethods.Contains(evolution.Flag)); // Trade Evolutions
         }
         internal static bool IsEvolutionValid(PKM pkm, int minSpecies = -1)
         {
@@ -1249,9 +1249,7 @@ namespace PKHeX.Core
             if (IsEvolvedFormChange(pkm))
                 return true;
             if (pkm.Species == 718 && pkm.InhabitedGeneration(7) && pkm.AltForm != 1)
-            {
                 return true;
-            }
             return false;
         }
         
@@ -1563,16 +1561,23 @@ namespace PKHeX.Core
             var last = vs.Last();
             if (last.MinLevel > 1) // Last entry from vs is removed, turn next entry into the wild/hatched pokemon
             {
-                last.MinLevel = 1;
+                last.MinLevel = Encounter.LevelMin;
                 last.RequiresLvlUp = false;
                 var first = vs.First();
-                if (first.MinLevel == 2 && !first.RequiresLvlUp)
+                if (!first.RequiresLvlUp)
                 {
-                    // Example Raichu in gen 2 or later, 
-                    // because Pichu requires level up Minimum level of Raichu would be 2
-                    // but after removing Pichu because the origin species is Pikachu, Raichu min level should be 1
-                    first.MinLevel = 1;
-                    first.RequiresLvlUp = false;
+                    if (first.MinLevel == 2)
+                    {
+                        // Example Raichu in gen 2 or later, 
+                        // because Pichu requires level up Minimum level of Raichu would be 2
+                        // but after removing Pichu because the origin species is Pikachu, Raichu min level should be 1
+                        first.MinLevel = 1;
+                        first.RequiresLvlUp = false;
+                    }
+                    else // ingame trade / stone can evolve immediately
+                    {
+                        first.MinLevel = last.MinLevel;
+                    }
                 }
             }
             // Maxspec is used to remove future gen evolutions, to gather evolution chain of a pokemon in previous generations
@@ -1603,7 +1608,7 @@ namespace PKHeX.Core
                 case GameVersion.US: case GameVersion.UM:
                     return getMoves(LevelUpUSUM, PersonalTable.USUM);
             }
-            return new int[0];
+            return Enumerable.Empty<int>();
 
             int[] getMoves(Learnset[] moves, PersonalTable table) => moves[table.GetFormeIndex(species, formnum)].GetMoves(lvl);
         }
@@ -1687,12 +1692,22 @@ namespace PKHeX.Core
             if (pkm.Format <= 3)
                 return r.Distinct();
             if (LVL)
-            { 
-                if (species == 479 && Generation >= 4) // Rotom
-                    r.Add(RotomMoves[pkm.AltForm]);
-
-                if (species == 718 && Generation == 7) // Zygarde
-                    r.AddRange(ZygardeMoves);
+            {
+                switch (species)
+                {
+                    case 479 when Generation >= 4: // rotom
+                        r.Add(RotomMoves[pkm.AltForm]);
+                        break;
+                    case 718 when Generation == 7: // zygarde
+                        r.AddRange(ZygardeMoves);
+                        break;
+                    case 800 when pkm.AltForm == 1: // Sun Necrozma
+                        r.Add(713);
+                        break;
+                    case 800 when pkm.AltForm == 2: // Moon Necrozma
+                        r.Add(714);
+                        break;
+                }
             }
             if (Tutor)
             {
@@ -1960,31 +1975,28 @@ namespace PKHeX.Core
             return r;
         }
 
-        internal static int[] GetEggMoves(PKM pkm, int species, int formnum)
+        internal static int[] GetEggMoves(PKM pkm, int species, int formnum, GameVersion version)
         {
             if (!pkm.InhabitedGeneration(pkm.GenNumber, species) || pkm.PersonalInfo.Gender == 255 && !FixedGenderFromBiGender.Contains(species))
                 return new int[0];
-
-            switch (pkm.GenNumber)
+            if (version == GameVersion.Any)
+                version = (GameVersion)pkm.Version;
+            return GetEggMoves(pkm.GenNumber, species, formnum, version);
+        }
+        private static int[] GetEggMoves(int gen, int species, int formnum, GameVersion version)
+        {
+            switch (gen)
             {
                 case 1:
                 case 2:
-                    if (!AllowGen2Crystal(pkm))
-                        return EggMovesGS[species].Moves;
-                    if (pkm.Format != 2)
-                        return EggMovesC[species].Moves;
-                    if (pkm.HasOriginalMetLocation)
-                        return EggMovesC[species].Moves;
-                    if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
-                        return EggMovesGS[species].Moves;
-                    return EggMovesC[species].Moves;
+                    return (version == GameVersion.C ? EggMovesC : EggMovesGS)[species].Moves;
                 case 3:
                     return EggMovesRS[species].Moves;
                 case 4:
-                    switch (pkm.Version)
+                    switch (version)
                     {
-                        case (int)GameVersion.HG:
-                        case (int)GameVersion.SS:
+                        case GameVersion.HG:
+                        case GameVersion.SS:
                             return EggMovesHGSS[species].Moves;
                         default:
                             return EggMovesDPPt[species].Moves;
@@ -1992,10 +2004,10 @@ namespace PKHeX.Core
                 case 5:
                     return EggMovesBW[species].Moves;
                 case 6: // entries per species
-                    switch (pkm.Version)
+                    switch (version)
                     {
-                        case (int)GameVersion.OR:
-                        case (int)GameVersion.AS:
+                        case GameVersion.OR:
+                        case GameVersion.AS:
                             return EggMovesAO[species].Moves;
                         default:
                             return EggMovesXY[species].Moves;
@@ -2003,10 +2015,10 @@ namespace PKHeX.Core
 
                 case 7: // entries per form if required
                     EggMoves[] table;
-                    switch (pkm.Version)
+                    switch (version)
                     {
-                        case (int)GameVersion.US:
-                        case (int)GameVersion.UM:
+                        case GameVersion.US:
+                        case GameVersion.UM:
                             table = EggMovesUSUM;
                             break;
                         default:
@@ -2023,6 +2035,7 @@ namespace PKHeX.Core
                     return new int[0];
             }
         }
+
         internal static IEnumerable<int> GetTMHM(PKM pkm, int species, int form, int generation, GameVersion Version = GameVersion.Any, bool RemoveTransferHM = true)
         {
             List<int> moves = new List<int>();
@@ -2151,6 +2164,8 @@ namespace PKHeX.Core
                         moves.Add(57);
                     break;
                 case 2:
+                    if (!AllowGen2Crystal(pkm))
+                        break;
                     info = PersonalTable.C[species];
                     moves.AddRange(Tutors_GSC.Where((t, i) => info.TMHM[57 + i]));
                     goto case 1;
@@ -2178,33 +2193,31 @@ namespace PKHeX.Core
                     info = PersonalTable.B2W2[species];
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
                     if (pkm.InhabitedGeneration(5) && specialTutors)
-                    {
-                        PersonalInfo pi = PersonalTable.B2W2.GetFormeEntry(species, form);
-                        for (int i = 0; i < Tutors_B2W2.Length; i++)
-                            for (int b = 0; b < Tutors_B2W2[i].Length; b++)
-                                if (pi.SpecialTutors[i][b])
-                                    moves.Add(Tutors_B2W2[i][b]);
-                    }
+                        moves.AddRange(GetTutors(PersonalTable.B2W2, Tutors_B2W2));
                     break;
                 case 6:
                     info = PersonalTable.AO[species];
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
                     if (pkm.InhabitedGeneration(6) && specialTutors && (pkm.AO || !pkm.IsUntraded))
-                    {
-                        PersonalInfo pi = PersonalTable.AO.GetFormeEntry(species, form);
-                        for (int i = 0; i < Tutors_AO.Length; i++)
-                            for (int b = 0; b < Tutors_AO[i].Length; b++)
-                                if (pi.SpecialTutors[i][b])
-                                    moves.Add(Tutors_AO[i][b]);
-                    }
+                        moves.AddRange(GetTutors(PersonalTable.AO, Tutors_AO));
                     break;
                 case 7:
                     info = PersonalTable.USUM.GetFormeEntry(species, form);
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
-                    // No special tutors in G7
+                    if (pkm.InhabitedGeneration(7) && specialTutors && (pkm.USUM || !pkm.IsUntraded))
+                        moves.AddRange(GetTutors(PersonalTable.USUM, Tutors_USUM));
                     break;
             }
             return moves.Distinct();
+
+            IEnumerable<int> GetTutors(PersonalTable t, params int[][] tutors)
+            {
+                var pi = t.GetFormeEntry(species, form);
+                for (int i = 0; i < tutors.Length; i++)
+                for (int b = 0; b < tutors[i].Length; b++)
+                    if (pi.SpecialTutors[i][b])
+                        yield return tutors[i][b];
+            }
         }
         internal static bool IsTradedKadabraG1(PKM pkm)
         {
@@ -2212,7 +2225,7 @@ namespace PKHeX.Core
                 return false;
             if (pk1.TradebackStatus == TradebackType.WasTradeback)
                 return true;
-            var IsYellow = Savegame_Version == GameVersion.Y;
+            var IsYellow = Savegame_Version == GameVersion.YW;
             if (pk1.TradebackStatus == TradebackType.Gen1_NotTradeback)
             {
                 // If catch rate is Abra catch rate it wont trigger as invalid trade without evolution, it could be traded as Abra

@@ -3,11 +3,15 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
-    /* Big thanks to Grovyle91's Pokémon Mystery Gift Editor, from which the structure was referenced.
-     * http://projectpokemon.org/forums/member.php?829-Grovyle91
-     * http://projectpokemon.org/forums/showthread.php?6524
-     * See also: http://tccphreak.shiny-clique.net/debugger/pcdfiles.htm
-     */
+    /// <summary>
+    /// Generation 4 Mystery Gift Template File
+    /// </summary>
+    /// <remarks>
+    /// Big thanks to Grovyle91's Pokémon Mystery Gift Editor, from which the structure was referenced.
+    /// http://projectpokemon.org/forums/member.php?829-Grovyle91
+    /// http://projectpokemon.org/forums/showthread.php?6524
+    /// See also: http://tccphreak.shiny-clique.net/debugger/pcdfiles.htm
+    /// </remarks>
     public sealed class PCD : MysteryGift
     {
         public const int Size = 0x358; // 856
@@ -106,6 +110,10 @@ namespace PKHeX.Core
 
         public bool CanBeReceivedBy(int pkmVersion) => (CardCompatibility >> pkmVersion & 1) == 1;
     }
+
+    /// <summary>
+    /// Generation 4 Mystery Gift Template File (Inner Gift Data, no card data)
+    /// </summary>
     public sealed class PGT : MysteryGift
     {
         public const int Size = 0x104; // 260
@@ -162,8 +170,7 @@ namespace PKHeX.Core
                     return _pk;
                 byte[] ekdata = new byte[PKX.SIZE_4PARTY];
                 Array.Copy(Data, 8, ekdata, 0, ekdata.Length);
-                bool empty = ekdata.SequenceEqual(new byte[ekdata.Length]);
-                return _pk = new PK4(empty ? ekdata : PKX.DecryptArray45(ekdata));
+                return _pk = new PK4(ekdata);
             }
             set
             {
@@ -217,7 +224,7 @@ namespace PKHeX.Core
                 pk4.FatefulEncounter = true;
                 pk4.Ball = 4;
                 pk4.Version = 10; // Diamond
-                pk4.Language = 2; // English
+                pk4.Language = (int)LanguageID.English; // English
                 pk4.Nickname = "MANAPHY";
                 pk4.Egg_Location = 1; // Ranger (will be +3000 later)
                 pk4.Move1_PP = pk4.GetMovePP(pk4.Move1, 0);

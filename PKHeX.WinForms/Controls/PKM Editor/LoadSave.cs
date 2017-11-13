@@ -251,6 +251,9 @@ namespace PKHeX.WinForms.Controls
             CB_HeldItem.SelectedValue = pk.HeldItem;
             CB_Form.SelectedIndex = CB_Form.Items.Count > pk.AltForm ? pk.AltForm : CB_Form.Items.Count - 1;
             TB_Friendship.Text = pk.CurrentFriendship.ToString();
+
+            Label_HatchCounter.Visible = CHK_IsEgg.Checked && pkm.Format > 1;
+            Label_Friendship.Visible = !CHK_IsEgg.Checked && pkm.Format > 1;
         }
         private void SaveMisc2(PKM pk)
         {
@@ -338,7 +341,10 @@ namespace PKHeX.WinForms.Controls
         private void LoadMisc6(PKM pk)
         {
             TB_EC.Text = $"{pk.EncryptionConstant:X8}";
-            CB_Ability.SelectedIndex = pk.AbilityNumber < 6 ? pk.AbilityNumber >> 1 : 0; // with some simple error handling
+            int abil = pk.AbilityNumber < 6 ? pk.AbilityNumber >> 1 : 0;
+            if (CB_Ability.Items.Count <= abil)
+                abil = CB_Ability.Items.Count - 1;
+            CB_Ability.SelectedIndex = abil; // with some simple error handling
             DEV_Ability.SelectedValue = pk.Ability;
             TB_AbilityNumber.Text = pk.AbilityNumber.ToString();
 

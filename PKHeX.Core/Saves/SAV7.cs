@@ -5,6 +5,9 @@ using System.Text;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generation 7 <see cref="SaveFile"/> object.
+    /// </summary>
     public sealed class SAV7 : SaveFile
     {
         // Save Data Attributes
@@ -14,25 +17,25 @@ namespace PKHeX.Core
         public override string[] PKMExtensions => PKM.Extensions.Where(f =>
         {
             int gen = f.Last() - 0x30;
-            return gen == 1 || (3 <= gen && gen <= 7);
+            return gen <= 7;
         }).ToArray();
 
         public SAV7(byte[] data = null)
         {
             Data = data == null ? new byte[SaveUtil.SIZE_G7SM] : (byte[])data.Clone();
             BAK = (byte[])Data.Clone();
-            Exportable = !Data.SequenceEqual(new byte[Data.Length]);
+            Exportable = !Data.All(z => z == 0);
 
             // Load Info
             GetBlockInfo();
             GetSAVOffsets();
 
-            HeldItems = Legal.HeldItems_SM;
+            HeldItems = USUM ? Legal.HeldItems_USUM : Legal.HeldItems_SM;
             Personal = USUM ? PersonalTable.USUM : PersonalTable.SM;
             if (!Exportable)
                 ClearBoxes();
 
-            var demo = new byte[0x4C4].SequenceEqual(Data.Skip(PCLayout).Take(0x4C4)); // up to Battle Box values
+            var demo = !USUM && Data.Skip(PCLayout).Take(0x4C4).All(z => z == 0); // up to Battle Box values
             if (demo || !Exportable)
             {
                 PokeDex = -1; // Disabled
@@ -41,28 +44,10 @@ namespace PKHeX.Core
             }
             else // Valid slot locking info present
             {
-                int lockedCount = 0, teamCount = 0;
-                for (int i = 0; i < TeamCount; i++)
-                {
-                    bool locked = Data[PCBackgrounds - TeamCount - i] == 1;
-                    for (int j = 0; j < 6; j++)
-                    {
-                        short val = BitConverter.ToInt16(Data, BattleBoxFlags + (i*6 + j) * 2);
-                        if (val < 0)
-                            continue;
-
-                        var slotVal = (BoxSlotCount*(val >> 8) + (val & 0xFF)) & 0xFFFF;
-
-                        if (locked)
-                            LockedSlots[lockedCount++] = slotVal;
-                        else TeamSlots[teamCount++] = slotVal;
-                    }
-                }
-                Array.Resize(ref LockedSlots, lockedCount);
-                Array.Resize(ref TeamSlots, teamCount);
+                LoadLockedSlots();
             }
         }
-
+        
         // Configuration
         public override SaveFile Clone() { return new SAV7(Data); }
         
@@ -76,15 +61,15 @@ namespace PKHeX.Core
         public override int Generation => 7;
         protected override int GiftCountMax => 48;
         protected override int GiftFlagMax => 0x100 * 8;
-        protected override int EventFlagMax => 3968;
-        protected override int EventConstMax => (EventFlag - EventConst) / 2;
+        protected override int EventFlagMax => USUM ? 4928 : 3968;
+        protected override int EventConstMax => 1000;
         public override int OTLength => 12;
         public override int NickLength => 12;
 
         public override int MaxMoveID => SM ? Legal.MaxMoveID_7 : Legal.MaxMoveID_7_USUM;
-        public override int MaxSpeciesID => SM ? Legal.MaxSpeciesID_7 : Legal.MaxMoveID_7_USUM;
-        public override int MaxItemID => Legal.MaxItemID_7;
-        public override int MaxAbilityID => Legal.MaxAbilityID_7;
+        public override int MaxSpeciesID => SM ? Legal.MaxSpeciesID_7 : Legal.MaxSpeciesID_7_USUM;
+        public override int MaxItemID => SM ? Legal.MaxItemID_7 : Legal.MaxItemID_7_USUM;
+        public override int MaxAbilityID => SM ? Legal.MaxAbilityID_7 : Legal.MaxAbilityID_7_USUM;
         public override int MaxBallID => Legal.MaxBallID_7; // 26
         public override int MaxGameID => Legal.MaxGameID_7;
 
@@ -125,23 +110,32 @@ namespace PKHeX.Core
             }
             // Fix Final Array Lengths
             Array.Resize(ref Blocks, count);
+
+            // clear memecrypto sig
+            if (Blocks.Length > MemeCryptoBlock)
+                new byte[0x80].CopyTo(Data, Blocks[MemeCryptoBlock].Offset + 0x100);
+
+        }
+
+        private const int MemeCryptoBlock = 36;
+        private bool CanReadChecksums()
+        {
+            if (Blocks.Length < MemeCryptoBlock)
+            { Debug.WriteLine($"Not enough blocks ({Blocks.Length}), aborting SetChecksums"); return false; }
+            return true;
         }
         protected override void SetChecksums()
         {
-            // Check for invalid block lengths
-            if (Blocks.Length < 3) // arbitrary...
-            {
-                Debug.WriteLine("Not enough blocks ({0}), aborting SetChecksums", Blocks.Length);
+            if (!CanReadChecksums())
                 return;
-            }
             // Apply checksums
             for (int i = 0; i < Blocks.Length; i++)
             {
                 if (Blocks[i].Length + Blocks[i].Offset > Data.Length)
-                { Debug.WriteLine("Block {0} has invalid offset/length value.", i); return; }
-                byte[] array = new byte[Blocks[i].Length];
-                Array.Copy(Data, Blocks[i].Offset, array, 0, array.Length);
-                BitConverter.GetBytes(SaveUtil.CRC16_7(array, Blocks[i].ID)).CopyTo(Data, BlockInfoOffset + 6 + i * 8);
+                { Debug.WriteLine($"Block {i} has invalid offset/length value."); return; }
+
+                ushort chk = SaveUtil.CRC16(Data, Blocks[i].Offset, Blocks[i].Length);
+                BitConverter.GetBytes(chk).CopyTo(Data, BlockInfoOffset + 6 + i * 8);
             }
             
             Data = SaveUtil.Resign7(Data);
@@ -150,13 +144,14 @@ namespace PKHeX.Core
         {
             get
             {
+                if (!CanReadChecksums())
+                    return false;
                 for (int i = 0; i < Blocks.Length; i++)
                 {
                     if (Blocks[i].Length + Blocks[i].Offset > Data.Length)
                         return false;
-                    byte[] array = new byte[Blocks[i].Length];
-                    Array.Copy(Data, Blocks[i].Offset, array, 0, array.Length);
-                    if (SaveUtil.CRC16_7(array, Blocks[i].ID) != BitConverter.ToUInt16(Data, BlockInfoOffset + 6 + i * 8))
+                    ushort chk = SaveUtil.CRC16(Data, Blocks[i].Offset, Blocks[i].Length);
+                    if (chk != BitConverter.ToUInt16(Data, BlockInfoOffset + 6 + i * 8))
                         return false;
                 }
                 return true;
@@ -166,23 +161,25 @@ namespace PKHeX.Core
         {
             get
             {
+                if (!CanReadChecksums())
+                    return string.Empty;
+
                 int invalid = 0;
-                string rv = "";
+                var sb = new StringBuilder();
                 for (int i = 0; i < Blocks.Length; i++)
                 {
                     if (Blocks[i].Length + Blocks[i].Offset > Data.Length)
                         return $"Block {i} Invalid Offset/Length.";
-                    byte[] array = new byte[Blocks[i].Length];
-                    Array.Copy(Data, Blocks[i].Offset, array, 0, array.Length);
-                    if (SaveUtil.CRC16_7(array, Blocks[i].ID) == BitConverter.ToUInt16(Data, BlockInfoOffset + 6 + i * 8))
+                    ushort chk = SaveUtil.CRC16(Data, Blocks[i].Offset, Blocks[i].Length);
+                    if (chk == BitConverter.ToUInt16(Data, BlockInfoOffset + 6 + i * 8))
                         continue;
 
                     invalid++;
-                    rv += $"Invalid: {i:X2} @ Region {Blocks[i].Offset:X5}" + Environment.NewLine;
+                    sb.AppendLine($"Invalid: {i:X2} @ Region {Blocks[i].Offset:X5}");
                 }
                 // Return Outputs
-                rv += $"SAV: {Blocks.Length - invalid}/{Blocks.Length + Environment.NewLine}";
-                return rv;
+                sb.AppendLine($"SAV: {Blocks.Length - invalid}/{Blocks.Length}");
+                return sb.ToString();
             }
         }
         public override ulong? Secure1
@@ -198,75 +195,96 @@ namespace PKHeX.Core
 
         private void GetSAVOffsets()
         {
-            if (SM)
+            if (!Exportable) // Empty input
             {
-                /* 00 */ Bag           = 0x00000;  // [DE0]    MyItem
-                /* 01 */ Trainer1       = 0x00E00;  // [07C]    Situation
-                /* 02 */            //  = 0x01000;  // [014]    RandomGroup
-                /* 03 */ TrainerCard    = 0x01200;  // [0C0]    MyStatus
-                /* 04 */ Party          = 0x01400;  // [61C]    PokePartySave
-                /* 05 */ EventConst     = 0x01C00;  // [E00]    EventWork
-                /* 06 */ PokeDex        = 0x02A00;  // [F78]    ZukanData
-                /* 07 */ GTS            = 0x03A00;  // [228]    GtsData
-                /* 08 */ Fused          = 0x03E00;  // [104]    UnionPokemon 
-                /* 09 */ Misc           = 0x04000;  // [200]    Misc
-                /* 10 */ Trainer2       = 0x04200;  // [020]    FieldMenu
-                /* 11 */            //  = 0x04400;  // [004]    ConfigSave
-                /* 12 */ AdventureInfo  = 0x04600;  // [058]    GameTime
-                /* 13 */ PCLayout       = 0x04800;  // [5E6]    BOX
-                /* 14 */ Box            = 0x04E00;  // [36600]  BoxPokemon
-                /* 15 */ Resort         = 0x3B400;  // [572C]   ResortSave
-                /* 16 */ PlayTime       = 0x40C00;  // [008]    PlayTime
-                /* 17 */ Overworld      = 0x40E00;  // [1080]   FieldMoveModelSave
-                /* 18 */ Fashion        = 0x42000;  // [1A08]   Fashion
-                /* 19 */            //  = 0x43C00;  // [6408]   JoinFestaPersonalSave
-                /* 20 */            //  = 0x4A200;  // [6408]   JoinFestaPersonalSave
-                /* 21 */ JoinFestaData  = 0x50800;  // [3998]   JoinFestaDataSave
-                /* 22 */            //  = 0x54200;  // [100]    BerrySpot
-                /* 23 */            //  = 0x54400;  // [100]    FishingSpot
-                /* 24 */            //  = 0x54600;  // [10528]  LiveMatchData
-                /* 25 */            //  = 0x64C00;  // [204]    BattleSpotData
-                /* 26 */ PokeFinderSave = 0x65000;  // [B60]    PokeFinderSave
-                /* 27 */ WondercardFlags = 0x65C00; // [3F50]   MysteryGiftSave
-                /* 28 */ Record         = 0x69C00;  // [358]    Record
-                /* 29 */            //  = 0x6A000;  // [728]    Data Block
-                /* 30 */            //  = 0x6A800;  // [200]    GameSyncSave
-                /* 31 */            //  = 0x6AA00;  // [718]    PokeDiarySave
-                /* 32 */ BattleTree     = 0x6B200;  // [1FC]    BattleInstSave
-                /* 33 */ Daycare        = 0x6B400;  // [200]    Sodateya
-                /* 34 */            //  = 0x6B600;  // [120]    WeatherSave
-                /* 35 */ QRSaveData     = 0x6B800;  // [1C8]    QRReaderSaveData
-                /* 36 */            //  = 0x6BA00;  // [200]    TurtleSalmonSave
-
-                EventFlag = EventConst + 0x7D0;
-
-                OFS_PouchHeldItem =     Bag + 0; // 430 (Case 0)
-                OFS_PouchKeyItem =      Bag + 0x6B8; // 184 (Case 4)
-                OFS_PouchTMHM =         Bag + 0x998; // 108 (Case 2)
-                OFS_PouchMedicine =     Bag + 0xB48; // 64 (Case 1)
-                OFS_PouchBerry =        Bag + 0xC48; // 72 (Case 3)
-                OFS_PouchZCrystals =    Bag + 0xD68; // 30 (Case 5)
-
-                PokeDexLanguageFlags =  PokeDex + 0x550;
-                WondercardData = WondercardFlags + 0x100;
-
-                BattleBoxFlags =        PCLayout + 0x4C4;
-                PCBackgrounds =         PCLayout + 0x5C0;
-                LastViewedBox =         PCLayout + 0x5E3;
-                PCFlags =               PCLayout + 0x5E0;
-
-                HoF = 0x25C0; // Inside EventWork (const/flag) block
-
-                FashionLength = 0x1A08;
-
-                TeamCount = 6;
-                LockedSlots = new int[6*TeamCount];
-                TeamSlots = new int[6*TeamCount];
+                // Set bare minimum values for empty sav compatibility (based on S/M offsets)
+                Trainer1 = 0x00E00;
+                TrainerCard = 0x01200;
+                Party = 0x01400;
+                Box = 0x04E00;
+                PCLayout = 0x04800;
+                BattleBoxFlags = PCLayout + 0x4C4;
+                PCBackgrounds = PCLayout + 0x5C0;
+                LastViewedBox = PCLayout + 0x5E3;
+                PCFlags = PCLayout + 0x5E0;
+                return;
             }
-            else // Empty input
+
+            /* 00 */ Bag            = Blocks[00].Offset; // 0x00000  // [DE0]    MyItem
+            /* 01 */ Trainer1       = Blocks[01].Offset; // 0x00E00  // [07C]    Situation
+            /* 02 */            //  = Blocks[02].Offset; // 0x01000  // [014]    RandomGroup
+            /* 03 */ TrainerCard    = Blocks[03].Offset; // 0x01200  // [0C0]    MyStatus
+            /* 04 */ Party          = Blocks[04].Offset; // 0x01400  // [61C]    PokePartySave
+            /* 05 */ EventConst     = Blocks[05].Offset; // 0x01C00  // [E00]    EventWork
+            /* 06 */ PokeDex        = Blocks[06].Offset; // 0x02A00  // [F78]    ZukanData
+            /* 07 */ GTS            = Blocks[07].Offset; // 0x03A00  // [228]    GtsData
+            /* 08 */ Fused          = Blocks[08].Offset; // 0x03E00  // [104]    UnionPokemon 
+            /* 09 */ Misc           = Blocks[09].Offset; // 0x04000  // [200]    Misc
+            /* 10 */ Trainer2       = Blocks[10].Offset; // 0x04200  // [020]    FieldMenu
+            /* 11 */ ConfigSave     = Blocks[11].Offset; // 0x04400  // [004]    ConfigSave
+            /* 12 */ AdventureInfo  = Blocks[12].Offset; // 0x04600  // [058]    GameTime
+            /* 13 */ PCLayout       = Blocks[13].Offset; // 0x04800  // [5E6]    BOX
+            /* 14 */ Box            = Blocks[14].Offset; // 0x04E00  // [36600]  BoxPokemon
+            /* 15 */ Resort         = Blocks[15].Offset; // 0x3B400  // [572C]   ResortSave
+            /* 16 */ PlayTime       = Blocks[16].Offset; // 0x40C00  // [008]    PlayTime
+            /* 17 */ Overworld      = Blocks[17].Offset; // 0x40E00  // [1080]   FieldMoveModelSave
+            /* 18 */ Fashion        = Blocks[18].Offset; // 0x42000  // [1A08]   Fashion
+            /* 19 */            //  = Blocks[19].Offset; // 0x43C00  // [6408]   JoinFestaPersonalSave
+            /* 20 */            //  = Blocks[20].Offset; // 0x4A200  // [6408]   JoinFestaPersonalSave
+            /* 21 */ JoinFestaData  = Blocks[21].Offset; // 0x50800  // [3998]   JoinFestaDataSave
+            /* 22 */            //  = Blocks[22].Offset; // 0x54200  // [100]    BerrySpot
+            /* 23 */            //  = Blocks[23].Offset; // 0x54400  // [100]    FishingSpot
+            /* 24 */            //  = Blocks[24].Offset; // 0x54600  // [10528]  LiveMatchData
+            /* 25 */            //  = Blocks[25].Offset; // 0x64C00  // [204]    BattleSpotData
+            /* 26 */ PokeFinderSave = Blocks[26].Offset; // 0x65000  // [B60]    PokeFinderSave
+            /* 27 */ WondercardFlags= Blocks[27].Offset; // 0x65C00  // [3F50]   MysteryGiftSave
+            /* 28 */ Record         = Blocks[28].Offset; // 0x69C00  // [358]    Record
+            /* 29 */            //  = Blocks[29].Offset; // 0x6A000  // [728]    ValidationSave
+            /* 30 */            //  = Blocks[30].Offset; // 0x6A800  // [200]    GameSyncSave
+            /* 31 */            //  = Blocks[31].Offset; // 0x6AA00  // [718]    PokeDiarySave
+            /* 32 */ BattleTree     = Blocks[32].Offset; // 0x6B200  // [1FC]    BattleInstSave
+            /* 33 */ Daycare        = Blocks[33].Offset; // 0x6B400  // [200]    Sodateya
+            /* 34 */            //  = Blocks[34].Offset; // 0x6B600  // [120]    WeatherSave
+            /* 35 */ QRSaveData     = Blocks[35].Offset; // 0x6B800  // [1C8]    QRReaderSaveData
+            /* 36 */            //  = Blocks[36].Offset; // 0x6BA00  // [200]    TurtleSalmonSave
+
+            EventFlag = EventConst + EventConstMax * 2; // After Event Const (u16)*n
+            HoF = EventFlag + EventFlagMax / 8; // After Event Flags (1b)*(1u8/8b)*n
+
+            OFS_PouchHeldItem =     Bag + 0; // 430 (Case 0)
+            OFS_PouchKeyItem =      Bag + 0x6B8; // 184 (Case 4)
+            OFS_PouchTMHM =         Bag + 0x998; // 108 (Case 2)
+            OFS_PouchMedicine =     Bag + 0xB48; // 64 (Case 1)
+            OFS_PouchBerry =        Bag + 0xC48; // 72 (Case 3)
+            OFS_PouchZCrystals =    Bag + 0xD68; // 30 (Case 5)
+
+            PokeDexLanguageFlags =  PokeDex + 0x550;
+            WondercardData = WondercardFlags + 0x100;
+
+            BattleBoxFlags =        PCLayout + 0x4C4;
+            PCBackgrounds =         PCLayout + 0x5C0;
+            LastViewedBox =         PCLayout + 0x5E3;
+            PCFlags =               PCLayout + 0x5E0;
+
+
+            FashionLength = 0x1A08;
+
+            TeamCount = 6;
+            LockedSlots = new int[6*TeamCount];
+            TeamSlots = new int[6*TeamCount];
+            if (USUM)
             {
-                Party = 0x0;
-                Box = Party + SIZE_PARTY * 6 + 0x1000;
+                // slight differences
+                /* 37 */            //  = Blocks[37].Offset;   BattleFesSave
+                /* 38 */            //  = Blocks[38].Offset;   FinderStudioSave
+
+                OFS_PouchHeldItem =     Bag + 0; // 427 (Case 0)
+                OFS_PouchKeyItem = OFS_PouchHeldItem + 4*427; // 198 (Case 4)
+                OFS_PouchTMHM = OFS_PouchKeyItem + 4*198; // 108 (Case 2)
+                OFS_PouchMedicine = OFS_PouchTMHM + 4*108; // 60 (Case 1)
+                OFS_PouchBerry = OFS_PouchMedicine + 4*60; // 67 (Case 3)
+                OFS_PouchZCrystals = OFS_PouchBerry + 4*67; // 35 (Case 5)
+                OFS_BattleItems = OFS_PouchZCrystals + 4*35; // 11 (Case 6)
             }
         }
 
@@ -285,16 +303,13 @@ namespace PKHeX.Core
         private int BattleTree { get; set; } = int.MinValue;
         private int BattleBoxFlags { get; set; } = int.MinValue;
         private int TeamCount { get; set; } = int.MinValue;
+        private int ConfigSave { get; set; } = int.MinValue;
 
         // Accessible as SAV7
         private int TrainerCard { get; set; } = 0x14000;
         private int Resort { get; set; }
         private int PCFlags { get; set; } = int.MinValue;
-        public int PSSStats { get; private set; } = int.MinValue;
-        public int MaisonStats { get; private set; } = int.MinValue;
         private int PCBackgrounds { get; set; } = int.MinValue;
-        public int Contest { get; private set; } = int.MinValue;
-        public int Accessories { get; private set; } = int.MinValue;
         public int PokeDexLanguageFlags { get; private set; } = int.MinValue;
         public int Fashion { get; set; } = int.MinValue;
         public int FashionLength { get; set; } = int.MinValue;
@@ -331,6 +346,8 @@ namespace PKHeX.Core
                 {
                     case 30: return GameVersion.SN;
                     case 31: return GameVersion.MN;
+                    case 32: return GameVersion.US;
+                    case 33: return GameVersion.UM;
                 }
                 return GameVersion.Unknown;
             }
@@ -431,12 +448,17 @@ namespace PKHeX.Core
             get => (Data[TrainerCard + 0x54] >> 2) & 7;
             set => Data[TrainerCard + 0x54] = (byte)((Data[TrainerCard + 0x54] & ~(7 << 2)) | (value << 2));
         }
+        public override int MultiplayerSpriteID
+        {
+            get => Data[TrainerCard + 0x58];
+            set => Data[TrainerCard + 0x58] = (byte)value;
+        }
         public int BallThrowType
         {
             get => Data[TrainerCard + 0x7A];
             set => Data[TrainerCard + 0x7A] = (byte)(value > 8 ? 0 : value);
         }
-        public int M
+        public int M // "StartLocation"
         {
             get => BitConverter.ToUInt16(Data, Trainer1 + 0x00);
             set => BitConverter.GetBytes((ushort)value).CopyTo(Data, Trainer1 + 0x00);
@@ -476,6 +498,70 @@ namespace PKHeX.Core
                 BitConverter.GetBytes(value).CopyTo(Data, Trainer1 + 0x20);
                 BitConverter.GetBytes(value).CopyTo(Data, Overworld + 0x20);
             }
+        }
+        public int SpecialLocation
+        {
+            get => Data[Trainer1 + 0x24];
+            set => Data[Trainer1 + 0x24] = (byte)value;
+        }
+        public int WarpContinueRequest
+        {
+            get => Data[Trainer1 + 0x6E];
+            set => Data[Trainer1 + 0x6E] = (byte)value;
+        }
+        public int StepCountEgg
+        {
+            get => BitConverter.ToInt32(Data, Trainer1 + 0x70);
+            set => BitConverter.GetBytes(value).CopyTo(Data, Trainer1 + 0x70);
+        }
+        public int LastZoneID
+        {
+            get => BitConverter.ToUInt16(Data, Trainer1 + 0x74);
+            set => BitConverter.GetBytes((ushort)value).CopyTo(Data, Trainer1 + 0x74);
+        }
+        public int StepCountFriendship
+        {
+            get => BitConverter.ToUInt16(Data, Trainer1 + 0x76);
+            set => BitConverter.GetBytes((ushort)value).CopyTo(Data, Trainer1 + 0x76);
+        }
+        public int StepCountAffection // Kawaigari
+        {
+            get => BitConverter.ToUInt16(Data, Trainer1 + 0x78);
+            set => BitConverter.GetBytes((ushort)value).CopyTo(Data, Trainer1 + 0x78);
+        }
+
+        public int ConfigValue
+        {
+            get => BitConverter.ToInt32(Data, ConfigSave);
+            set => BitConverter.GetBytes(value).CopyTo(Data, ConfigSave);
+        }
+        public int TalkingSpeed
+        {
+            get => ConfigValue & 3;
+            set => ConfigValue = ConfigValue & ~3 | (value & 3);
+        }
+        public int BattleAnimation
+        {
+            // Effects OFF = 1, Effects ON = 0
+            get => (ConfigValue >> 2) & 1;
+            set => ConfigValue = ConfigValue & ~(1<<2) | (value << 2);
+        }
+        public int BattleStyle
+        {
+            // SET = 1, SWITCH = 0
+            get => (ConfigValue >> 3) & 1;
+            set => ConfigValue = ConfigValue & ~(1 << 3) | (value << 3);
+        }
+        public int ButtonMode
+        {
+            get => (ConfigValue >> 13) & 3;
+            set => ConfigValue = ConfigValue & ~(1 << 13) | (value << 13);
+        }
+        public int BoxStatus
+        {
+            // MANUAL = 1, AUTOMATIC = 0
+            get => (ConfigValue >> 15) & 1;
+            set => ConfigValue = ConfigValue & ~(1 << 15) | (value << 15);
         }
 
         public override uint Money
@@ -650,7 +736,8 @@ namespace PKHeX.Core
         public void SetRecord(int recordID, int value)
         {
             int ofs = GetRecordOffset(recordID);
-            int max = GetRecordMax(recordID);
+            var maxes = USUM ? RecordMaxType_USUM: RecordMaxType_SM;
+            int max = GetRecordMax(recordID, maxes);
             if (value > max)
                 value = max;
             if (recordID < 100)
@@ -667,9 +754,9 @@ namespace PKHeX.Core
             return -1;
         }
 
-        public static int GetRecordMax(int recordID) => recordID < 200 ? RecordMax[RecordMaxType[recordID]] : 0;
+        public static int GetRecordMax(int recordID, int[] maxes = null) => recordID < 200 ? RecordMax[(maxes ?? RecordMaxType_USUM)[recordID]] : 0;
         private static readonly int[] RecordMax = {999999999, 9999999, 999999, 99999, 65535, 9999, 999};
-        private static readonly int[] RecordMaxType =
+        private static readonly int[] RecordMaxType_SM =
         {
             0, 0, 0, 0, 0, 0, 2, 2, 2, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -692,6 +779,30 @@ namespace PKHeX.Core
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        };
+        private static readonly int[] RecordMaxType_USUM =
+        {
+            0, 0, 0, 0, 0, 0, 2, 2, 2, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 2, 2, 2, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 2, 2, 2, 0, 0, 0, 2, 2, 0,
+            0, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 1, 2, 2, 2,
+            0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 6, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 4, 4, 4, 5, 5, 4, 5, 5
         };
 
         public ushort PokeFinderCameraVersion
@@ -743,7 +854,9 @@ namespace PKHeX.Core
         {
             get
             {
-                InventoryPouch[] pouch =
+                InventoryPouch[] pouch;
+                if (SM)
+                pouch = new[]
                 {
                     new InventoryPouch(InventoryType.Medicine, Legal.Pouch_Medicine_SM, 999, OFS_PouchMedicine),
                     new InventoryPouch(InventoryType.Items, Legal.Pouch_Items_SM, 999, OFS_PouchHeldItem),
@@ -751,6 +864,17 @@ namespace PKHeX.Core
                     new InventoryPouch(InventoryType.Berries, Legal.Pouch_Berries_SM, 999, OFS_PouchBerry),
                     new InventoryPouch(InventoryType.KeyItems, Legal.Pouch_Key_SM, 1, OFS_PouchKeyItem),
                     new InventoryPouch(InventoryType.ZCrystals, Legal.Pouch_ZCrystal_SM, 1, OFS_PouchZCrystals),
+                };
+                else // USUM
+                pouch = new[]
+                {
+                    new InventoryPouch(InventoryType.Medicine, Legal.Pouch_Medicine_SM, 999, OFS_PouchMedicine),
+                    new InventoryPouch(InventoryType.Items, Legal.Pouch_Items_SM, 999, OFS_PouchHeldItem),
+                    new InventoryPouch(InventoryType.TMHMs, Legal.Pouch_TMHM_SM, 1, OFS_PouchTMHM),
+                    new InventoryPouch(InventoryType.Berries, Legal.Pouch_Berries_SM, 999, OFS_PouchBerry),
+                    new InventoryPouch(InventoryType.KeyItems,  Legal.Pouch_Key_USUM, 1, OFS_PouchKeyItem),
+                    new InventoryPouch(InventoryType.ZCrystals, Legal.Pouch_ZCrystal_USUM, 1, OFS_PouchZCrystals),
+                    new InventoryPouch(InventoryType.BattleItems, Legal.Pouch_Roto_USUM, 999, OFS_BattleItems),
                 };
                 foreach (var p in pouch)
                     p.GetPouch7(ref Data);
@@ -923,7 +1047,9 @@ namespace PKHeX.Core
                     int fc = Personal[pkm.Species].FormeCount;
                     if (fc > 1) // actually has forms
                     {
-                        int f = SaveUtil.GetDexFormIndexSM(pkm.Species, fc, MaxSpeciesID - 1);
+                        int f = USUM 
+                            ? SaveUtil.GetDexFormIndexUSUM(pkm.Species, fc, MaxSpeciesID - 1)
+                            : SaveUtil.GetDexFormIndexSM(pkm.Species, fc, MaxSpeciesID - 1);
                         if (f >= 0) // bit index valid
                             bitIndex = f + form;
                     }
@@ -961,7 +1087,7 @@ namespace PKHeX.Core
 
             ((PK7)pkm).FormDuration = duration;
         }
-        private static bool SanitizeFormsToIterate(int species, out int formStart, out int formEnd, int formIn)
+        private bool SanitizeFormsToIterate(int species, out int formStart, out int formEnd, int formIn)
         {
             // 004AA370 in Moon
             // Simplified in terms of usage -- only overrides to give all the battle forms for a pkm
@@ -970,14 +1096,26 @@ namespace PKHeX.Core
             switch (species)
             {
                 case 351: // Castform
+                case 778 when USUM: // Mimikyu
                     formStart = 0;
                     formEnd = 3;
                     return true;
+
+                case 020: // Raticate
+                case 105 when USUM: // Marowak
+                    formStart = 0;
+                    formEnd = 2;
+                    return true;
+
                 case 421: // Cherrim
                 case 555: // Darmanitan
                 case 648: // Meloetta
                 case 746: // Wishiwashi
                 case 778: // Mimikyu
+                case 743 when USUM: // Ribombee
+                case 744 when USUM: // Rockruff
+                case 752 when USUM: // Araquanid
+                case 777 when USUM: // Togedemaru
                     formStart = 0;
                     formEnd = 1;
                     return true;
@@ -1041,6 +1179,16 @@ namespace PKHeX.Core
             // Set the Display flag if none are set
             Data[ofs + (4 + shift) * brSize + bd] |= (byte)(1 << bm);
         }
+        public bool NationalDex
+        {
+            get => (Data[PokeDex + 4] & 1) == 1;
+            set => Data[PokeDex + 4] = (byte)((Data[PokeDex + 4] & 0xFE) | (value ? 1 : 0));
+        }
+
+        /// <summary>
+        /// Gets the last viewed dex entry in the Pokedex (by National Dex ID), internally called DefaultMons
+        /// </summary>
+        public uint CurrentViewedDex => BitConverter.ToUInt32(Data, PokeDex + 4) >> 9 & 0x3FF;
 
         public override bool GetCaught(int species)
         {
@@ -1094,6 +1242,36 @@ namespace PKHeX.Core
 
             int slotIndex = slot + BoxSlotCount * box;
             return TeamSlots.Any(s => s == slotIndex);
+        }
+        private void LoadLockedSlots()
+        {
+            int lockedCount = 0, teamCount = 0;
+            for (int i = 0; i < TeamCount; i++)
+            {
+                bool locked = Data[PCBackgrounds - TeamCount - i] == 1;
+                for (int j = 0; j < 6; j++)
+                {
+                    short val = BitConverter.ToInt16(Data, BattleBoxFlags + (i * 6 + j) * 2);
+                    if (val < 0)
+                        continue;
+
+                    var slotVal = (BoxSlotCount * (val >> 8) + (val & 0xFF)) & 0xFFFF;
+
+                    if (locked)
+                        LockedSlots[lockedCount++] = slotVal;
+                    else TeamSlots[teamCount++] = slotVal;
+                }
+            }
+            Array.Resize(ref LockedSlots, lockedCount);
+            Array.Resize(ref TeamSlots, teamCount);
+        }
+
+        private int FusedCount => USUM ? 3 : 1;
+        public int GetFusedSlotOffset(int slot)
+        {
+            if (Fused < 0 || slot < 0 || slot >= FusedCount)
+                return -1;
+            return Fused + SIZE_PARTY * slot; // 0x104*slot
         }
 
         public override int DaycareSeedSize => 32; // 128 bits
@@ -1272,34 +1450,19 @@ namespace PKHeX.Core
         }
         public override string MiscSaveInfo()
         {
-            return Blocks.Aggregate("", (current, b) => current +
-                $"{b.ID:00}: {b.Offset:X5}-{b.Offset + b.Length:X5}, {b.Length:X5}{Environment.NewLine}");
-        }
-        public byte BallThrowTypeUnlocked
-        {
-            get => (byte)(((BitConverter.ToUInt16(Data, 0x23F4) << 4) >> 10) << 2);
-            set
-            {
-                ushort flags = (ushort)(BitConverter.ToUInt16(Data, 0x23F4) & 0xF03F);
-                flags |= (ushort)((value & 0xFC) << 4);
-                BitConverter.GetBytes(flags).CopyTo(Data, 0x23F4);
-            }
-        }
-        public byte BallThrowTypeLearned
-        {
-            get => (byte)((Data[0x2583] & 0x7F) << 1);
-            set => Data[0x2583] = (byte)((Data[0x2583] & 0x80) | ((value & 0xFE) >> 1));
-        }
-        public byte BattleTreeSuperUnlocked
-        {
-            get => (byte)(Data[0x23F9] >> 5);
-            set => Data[0x23F9] = (byte)((Data[0x23F9] & 0x1F) | ((value & 0x07) << 5));
+            return string.Join(Environment.NewLine,
+                Blocks.Select(b => $"{b.ID:00}: {b.Offset:X5}-{b.Offset + b.Length:X5}, {b.Length:X5}"));
         }
         public bool MegaUnlocked
         {
             get => (Data[TrainerCard + 0x78] & 0x01) != 0;
             set => Data[TrainerCard + 0x78] = (byte)((Data[TrainerCard + 0x78] & 0xFE) | (value ? 1 : 0)); // in battle
             // Data[0x1F22] = (byte)((Data[0x1F22] & 0xFE) | (value ? 1 : 0)); // event
+        }
+        public bool ZMoveUnlocked
+        {
+            get => (Data[TrainerCard + 0x78] & 2) != 0;
+            set => Data[TrainerCard + 0x78] = (byte)((Data[TrainerCard + 0x78] & ~2) | (value ? 2 : 0)); // in battle
         }
 
         public override string GetString(int Offset, int Count) => StringConverter.GetString7(Data, Offset, Count);

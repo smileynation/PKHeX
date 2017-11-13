@@ -5,7 +5,9 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
-    // Base Class for Save Files
+    /// <summary>
+    /// Base Class for Save Files
+    /// </summary>
     public abstract class SaveFile
     {
         public static bool SetUpdateDex { protected get; set; } = true;
@@ -198,9 +200,8 @@ namespace PKHeX.Core
                 if (value[0].Species == 0)
                     Debug.WriteLine($"Empty first slot, received {value.Count}.");
 
-                PKM[] newParty = value.Where(pk => pk.Species != 0).ToArray();
-
-                Array.Resize(ref newParty, 6);
+                PKM[] newParty = new PKM[6];
+                value.Where(pk => pk.Species != 0).CopyTo(newParty);
 
                 for (int i = PartyCount; i < newParty.Length; i++)
                     newParty[i] = BlankPKM;
@@ -298,14 +299,29 @@ namespace PKHeX.Core
                 throw new ArgumentException($"Event Flag to set ({flagNumber}) is greater than max ({EventFlagMax}).");
             SetFlag(EventFlag + (flagNumber >> 3), flagNumber & 7, value);
         }
-        public bool GetFlag(int ofs, int n)
+        /// <summary>
+        /// Gets the <see cref="bool"/> status of the Flag at the specified offset and index.
+        /// </summary>
+        /// <param name="offset">Offset to read from</param>
+        /// <param name="bitIndex">Bit index to read</param>
+        /// <returns>Flag is Set (true) or not Set (false)</returns>
+        public bool GetFlag(int offset, int bitIndex)
         {
-            return (Data[ofs] >> n & 1) != 0;
+            bitIndex &= 7; // ensure bit access is 0-7
+            return (Data[offset] >> bitIndex & 1) != 0;
         }
-        public void SetFlag(int ofs, int n, bool value)
+        /// <summary>
+        /// Sets the <see cref="bool"/> status of the Flag at the specified offset and index.
+        /// </summary>
+        /// <param name="offset">Offset to read from</param>
+        /// <param name="bitIndex">Bit index to read</param>
+        /// <param name="value">Flag status to set</param>
+        /// <remarks>Flag is Set (true) or not Set (false)</remarks>
+        public void SetFlag(int offset, int bitIndex, bool value)
         {
-            Data[ofs] &= (byte)~(1 << (n & 7));
-            Data[ofs] |= (byte)((value ? 1 : 0) << n);
+            bitIndex &= 7; // ensure bit access is 0-7
+            Data[offset] &= (byte)~(1 << bitIndex);
+            Data[offset] |= (byte)((value ? 1 : 0) << bitIndex);
         }
 
         // Inventory
@@ -386,11 +402,11 @@ namespace PKHeX.Core
         // Daycare
         public int DaycareIndex = 0;
         public virtual bool HasTwoDaycares => false;
-        public virtual int GetDaycareSlotOffset(int loc, int slot) { return -1; }
-        public virtual uint? GetDaycareEXP(int loc, int slot) { return null; }
-        public virtual string GetDaycareRNGSeed(int loc) { return null; }
-        public virtual bool? IsDaycareHasEgg(int loc) { return null; }
-        public virtual bool? IsDaycareOccupied(int loc, int slot) { return null; }
+        public virtual int GetDaycareSlotOffset(int loc, int slot) => -1;
+        public virtual uint? GetDaycareEXP(int loc, int slot) => null;
+        public virtual string GetDaycareRNGSeed(int loc) => null;
+        public virtual bool? IsDaycareHasEgg(int loc) => null;
+        public virtual bool? IsDaycareOccupied(int loc, int slot) => null;
 
         public virtual void SetDaycareEXP(int loc, int slot, uint EXP) { }
         public virtual void SetDaycareRNGSeed(int loc, string seed) { }
@@ -449,18 +465,7 @@ namespace PKHeX.Core
             if (box1 >= BoxCount || box2 >= BoxCount) // invalid box positions
                 return false;
 
-            int min = BoxSlotCount * box1;
-            int max = BoxSlotCount * box1 + BoxSlotCount;
-            if (LockedSlots.Any(slot => min <= slot && slot < max)) // locked slot within box
-                return false;
-            if (TeamSlots.Any(slot => min <= slot && slot < max)) // team slot within box
-                return false;
-
-            min = BoxSlotCount * box2;
-            max = BoxSlotCount * box2 + BoxSlotCount;
-            if (LockedSlots.Any(slot => min <= slot && slot < max)) // locked slot within box
-                return false;
-            if (TeamSlots.Any(slot => min <= slot && slot < max)) // team slot within box
+            if (!IsBoxAbleToMove(box1) || !IsBoxAbleToMove(box2))
                 return false;
 
             // Data
@@ -481,6 +486,16 @@ namespace PKHeX.Core
             int b1w = GetBoxWallpaper(box1);
             SetBoxWallpaper(box1, GetBoxWallpaper(box2));
             SetBoxWallpaper(box2, b1w);
+            return true;
+        }
+        private bool IsBoxAbleToMove(int box)
+        {
+            int min = BoxSlotCount * box;
+            int max = BoxSlotCount * box + BoxSlotCount;
+            if (LockedSlots.Any(slot => min <= slot && slot < max)) // locked slot within box
+                return false;
+            if (TeamSlots.Any(slot => min <= slot && slot < max)) // team slot within box
+                return false;
             return true;
         }
 
@@ -519,21 +534,28 @@ namespace PKHeX.Core
                 SetDex(pkm);
             SetPartyValues(pkm, isParty: true);
 
-            for (int i = 0; i < 6; i++)
-                if (GetPartyOffset(i) == offset)
-                {
-                    if (pkm.Species != 0)
-                    {
-                        if (PartyCount <= i)
-                            PartyCount = i + 1;
-                    }
-                    else if (PartyCount > i)
-                        PartyCount = i;
-                    break;
-                }
+            int i = GetPartyIndex(offset);
+            if (i <= -1)
+                throw new ArgumentException("Invalid Party offset provided; unable to resolve party slot index.");
+            
+            // update party count
+            if (pkm.Species != 0)
+            {
+                if (PartyCount <= i)
+                    PartyCount = i + 1;
+            }
+            else if (PartyCount > i)
+                PartyCount = i;
 
             SetData(pkm.EncryptedPartyData, offset);
             Edited = true;
+        }
+        private int GetPartyIndex(int offset)
+        {
+            for (int i = 0; i < 6; i++)
+                if (GetPartyOffset(i) == offset)
+                    return i;
+            return -1;
         }
         public virtual void SetStoredSlot(PKM pkm, int offset, bool? trade = null, bool? dex = null)
         {
@@ -562,12 +584,12 @@ namespace PKHeX.Core
             SetStoredSlot(BlankPKM, GetPartyOffset(5), false, false);
             PartyCount -= 1;
         }
-        public virtual bool IsSlotLocked(int box, int slot) { return false; }
+        public virtual bool IsSlotLocked(int box, int slot) => false;
         public bool IsAnySlotLockedInBox(int BoxStart, int BoxEnd)
         {
             return LockedSlots.Any(slot => BoxStart*BoxSlotCount <= slot && slot < (BoxEnd + 1)*BoxSlotCount);
         }
-        public virtual bool IsSlotInBattleTeam(int box, int slot) { return false; }
+        public virtual bool IsSlotInBattleTeam(int box, int slot) => false;
 
         public void SortBoxes(int BoxStart = 0, int BoxEnd = -1)
         {
@@ -637,8 +659,10 @@ namespace PKHeX.Core
         public virtual void SetSeen(int species, bool seen) { }
         public virtual bool GetCaught(int species) => false;
         public virtual void SetCaught(int species, bool caught) { }
-        public int SeenCount => HasPokeDex ? new bool[MaxSpeciesID].Where((b, i) => GetSeen(i+1)).Count() : 0;
-        public int CaughtCount => HasPokeDex ? new bool[MaxSpeciesID].Where((b, i) => GetCaught(i+1)).Count() : 0;
+        public int SeenCount => HasPokeDex ? Enumerable.Range(1, MaxSpeciesID).Count(GetSeen) : 0;
+        public int CaughtCount => HasPokeDex ? Enumerable.Range(1, MaxSpeciesID).Count(GetCaught) : 0;
+        public decimal PercentSeen => (decimal) SeenCount / MaxSpeciesID;
+        public decimal PercentCaught => (decimal)CaughtCount / MaxSpeciesID;
 
         public byte[] GetData(int Offset, int Length)
         {

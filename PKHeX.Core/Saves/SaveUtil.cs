@@ -6,11 +6,14 @@ using System.Text;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Logic for <see cref="SaveFile"/> data loading and manipulation.
+    /// </summary>
     public static class SaveUtil
     {
         public const int BEEF = 0x42454546;
 
-        public const int SIZE_G7USUM = 999_999_999;
+        public const int SIZE_G7USUM = 0x6CC00;
         public const int SIZE_G7SM = 0x6BE00;
         public const int SIZE_G6XY = 0x65600;
         public const int SIZE_G6ORAS = 0x76000;
@@ -39,7 +42,7 @@ namespace PKHeX.Core
         public const int SIZE_G1BAT = 0x802C;
         private static readonly HashSet<int> SIZES = new HashSet<int>
         {
-            SIZE_G7SM,
+            SIZE_G7SM, SIZE_G7USUM,
             SIZE_G6XY, SIZE_G6ORAS, SIZE_G6ORASDEMO,
             SIZE_G5RAW, SIZE_G5BW, SIZE_G5B2W2,
             SIZE_G4BR, SIZE_G4RAW,
@@ -148,9 +151,9 @@ namespace PKHeX.Core
         /// <returns>True if a valid international save, False otherwise.</returns>
         private static GameVersion GetIsG2SAVU(byte[] data)
         {
-            if (IsG12ListValid(data, 0x288A, 30) && IsG12ListValid(data, 0x2D6C, 30))
+            if (IsG12ListValid(data, 0x288A, 20) && IsG12ListValid(data, 0x2D6C, 20))
                 return GameVersion.GS;
-            if (IsG12ListValid(data, 0x2865, 30) && IsG12ListValid(data, 0x2D10, 30))
+            if (IsG12ListValid(data, 0x2865, 20) && IsG12ListValid(data, 0x2D10, 20))
                 return GameVersion.C;
             return GameVersion.Invalid;
         }
@@ -159,11 +162,11 @@ namespace PKHeX.Core
         /// <returns>True if a valid Japanese save, False otherwise.</returns>
         internal static GameVersion GetIsG2SAVJ(byte[] data)
         {
-            if (!IsG12ListValid(data, 0x2D10, 20))
+            if (!IsG12ListValid(data, 0x2D10, 30))
                 return GameVersion.Invalid;
-            if (IsG12ListValid(data, 0x283E, 20))
+            if (IsG12ListValid(data, 0x283E, 30))
                 return GameVersion.GS;
-            if (IsG12ListValid(data, 0x281A, 20))
+            if (IsG12ListValid(data, 0x281A, 30))
                 return GameVersion.C;
             return GameVersion.Invalid;
         }
@@ -172,7 +175,7 @@ namespace PKHeX.Core
         /// <returns>True if a valid Korean save, False otherwise.</returns>
         internal static GameVersion GetIsG2SAVK(byte[] data)
         {
-            if (IsG12ListValid(data, 0x2DAE, 30) && IsG12ListValid(data, 0x28CC, 30))
+            if (IsG12ListValid(data, 0x2DAE, 20) && IsG12ListValid(data, 0x28CC, 20))
                 return GameVersion.GS;
             return GameVersion.Invalid;
         }
@@ -224,7 +227,7 @@ namespace PKHeX.Core
         /// <returns>Version Identifier or Invalid if type cannot be determined.</returns>
         internal static GameVersion GetIsG3BOXSAV(byte[] data)
         {
-            if (!new[] { SIZE_G3BOX, SIZE_G3BOXGCI }.Contains(data.Length))
+            if (data.Length != SIZE_G3BOX && data.Length != SIZE_G3BOXGCI)
                 return GameVersion.Invalid;
 
             byte[] sav = data;
@@ -248,7 +251,7 @@ namespace PKHeX.Core
         /// <returns>Version Identifier or Invalid if type cannot be determined.</returns>
         internal static GameVersion GetIsG3COLOSAV(byte[] data)
         {
-            if (!new[] { SIZE_G3COLO, SIZE_G3COLOGCI }.Contains(data.Length))
+            if (data.Length != SIZE_G3COLO && data.Length != SIZE_G3COLOGCI)
                 return GameVersion.Invalid;
 
             // Check the intro bytes for each save slot
@@ -266,7 +269,7 @@ namespace PKHeX.Core
         /// <returns>Version Identifier or Invalid if type cannot be determined.</returns>
         internal static GameVersion GetIsG3XDSAV(byte[] data)
         {
-            if (!new[] { SIZE_G3XD, SIZE_G3XDGCI }.Contains(data.Length))
+            if (data.Length != SIZE_G3XD && data.Length != SIZE_G3XDGCI)
                 return GameVersion.Invalid;
 
             // Check the intro bytes for each save slot
@@ -322,13 +325,7 @@ namespace PKHeX.Core
                 return GameVersion.Invalid;
 
             byte[] sav = SAV4BR.DecryptPBRSaveData(data);
-
-            bool valid = SAV4BR.VerifyChecksum(sav, 0, 0x1C0000, 0x1BFF80);
-            valid &= SAV4BR.VerifyChecksum(sav, 0, 0x100, 8);
-            valid &= SAV4BR.VerifyChecksum(sav, 0x1C0000, 0x1C0000, 0x1BFF80 + 0x1C0000);
-            valid &= SAV4BR.VerifyChecksum(sav, 0x1C0000, 0x100, 0x1C0008);
-
-            return  valid ? GameVersion.BATREV : GameVersion.Invalid;
+            return SAV4BR.IsChecksumsValid(sav) ? GameVersion.BATREV : GameVersion.Invalid;
         }
         /// <summary>Determines the type of 5th gen save</summary>
         /// <param name="data">Save data of which to determine the type</param>
@@ -375,9 +372,20 @@ namespace PKHeX.Core
         /// <returns>Version Identifier or Invalid if type cannot be determined.</returns>
         private static GameVersion GetIsG7SAV(byte[] data)
         {
-            if (!new [] {SIZE_G7SM}.Contains(data.Length))
+            if (data.Length != SIZE_G7SM && data.Length != SIZE_G7USUM)
                 return GameVersion.Invalid;
-            return GameVersion.SM;
+
+            if (BitConverter.ToUInt32(data, data.Length - 0x1F0) != BEEF)
+                return GameVersion.Invalid;
+
+            switch (data.Length)
+            {
+                case SIZE_G7SM:
+                    return GameVersion.SM;
+                case SIZE_G7USUM:
+                    return GameVersion.USUM;
+            }
+            return GameVersion.Invalid;
         }
 
 
@@ -456,7 +464,7 @@ namespace PKHeX.Core
             // Secondary Properties may not be used but can be filled in as template.
             SAV.TID = 12345;
             SAV.SID = 54321;
-            SAV.Language = 2; // English
+            SAV.Language = (int)LanguageID.English; // English
             SAV.Country = 49; // USA
             SAV.SubRegion = 7; // CA
             SAV.ConsoleRegion = 1; // Americas
@@ -628,23 +636,20 @@ namespace PKHeX.Core
 
         /// <summary>Calculates the 16bit checksum over an input byte array. Used in Gen7 save files.</summary>
         /// <param name="data">Input byte array</param>
-        /// <param name="blockID">Block ID to checksum</param>
+        /// <param name="start">Offset to start checksum at</param>
+        /// <param name="length">Length of array to checksum</param>
         /// <param name="initial">Initial value for checksum</param>
         /// <returns>Checksum</returns>
-        public static ushort CRC16_7(byte[] data, int blockID, ushort initial = 0)
+        public static ushort CRC16(byte[] data, int start, int length, ushort initial = 0)
         {
-            if (blockID == 36)
-                new byte[0x80].CopyTo(data, 0x100);
-
             ushort chk = (ushort)~initial;
-            foreach (byte b in data)
-                chk = (ushort) (crc16[(b ^ chk) & 0xFF] ^ chk >> 8);
-
+            for (var i = start; i < start + length; i++)
+                chk = (ushort) (crc16[(data[i] ^ chk) & 0xFF] ^ chk >> 8);
             return (ushort)~chk;
         }
         public static byte[] Resign7(byte[] sav7)
         {
-            return MemeCrypto.Resign(sav7);
+            return MemeCrypto.Resign7(sav7);
         }
         /// <summary>Calculates the 32bit checksum over an input byte array. Used in GBA save files.</summary>
         /// <param name="data">Input byte array</param>
@@ -689,6 +694,89 @@ namespace PKHeX.Core
             bool IsGameMatchHeader(IEnumerable<string> headers, byte[] data) => headers.Contains(Encoding.ASCII.GetString(data, 0, 4));
         }
 
+        private static readonly ushort[] formtable_SM = // u16 species, u16 formcount
+        {
+            0x0003, 0x0002, 0x0006, 0x0003, 0x0009, 0x0002, 0x000F, 0x0002,
+            0x0012, 0x0002, 0x0013, 0x0002, 0x0014, 0x0003, 0x0019, 0x0007,
+            0x001A, 0x0002, 0x001B, 0x0002, 0x001C, 0x0002, 0x0025, 0x0002,
+            0x0026, 0x0002, 0x0032, 0x0002, 0x0033, 0x0002, 0x0034, 0x0002,
+            0x0035, 0x0002, 0x0041, 0x0002, 0x004A, 0x0002, 0x004B, 0x0002,
+            0x004C, 0x0002, 0x0050, 0x0002, 0x0058, 0x0002, 0x0059, 0x0002,
+            0x005E, 0x0002, 0x0067, 0x0002, 0x0069, 0x0002, 0x0073, 0x0002,
+            0x007F, 0x0002, 0x0082, 0x0002, 0x008E, 0x0002, 0x0096, 0x0003,
+            0x00B5, 0x0002, 0x00C9, 0x001C, 0x00D0, 0x0002, 0x00D4, 0x0002,
+            0x00D6, 0x0002, 0x00E5, 0x0002, 0x00F8, 0x0002, 0x00FE, 0x0002,
+            0x0101, 0x0002, 0x0104, 0x0002, 0x011A, 0x0002, 0x012E, 0x0002,
+            0x012F, 0x0002, 0x0132, 0x0002, 0x0134, 0x0002, 0x0136, 0x0002,
+            0x013F, 0x0002, 0x0143, 0x0002, 0x014E, 0x0002, 0x015F, 0x0004,
+            0x0162, 0x0002, 0x0167, 0x0002, 0x016A, 0x0002, 0x0175, 0x0002,
+            0x0178, 0x0002, 0x017C, 0x0002, 0x017D, 0x0002, 0x017E, 0x0002,
+            0x017F, 0x0002, 0x0180, 0x0002, 0x0182, 0x0004, 0x019C, 0x0003,
+            0x019D, 0x0003, 0x01A5, 0x0002, 0x01A6, 0x0002, 0x01A7, 0x0002,
+            0x01AC, 0x0002, 0x01BD, 0x0002, 0x01C0, 0x0002, 0x01CC, 0x0002,
+            0x01DB, 0x0002, 0x01DF, 0x0006, 0x01E7, 0x0002, 0x01EC, 0x0002,
+            0x01ED, 0x0012, 0x0213, 0x0002, 0x0226, 0x0002, 0x022B, 0x0002,
+            0x0249, 0x0004, 0x024A, 0x0004, 0x0281, 0x0002, 0x0282, 0x0002,
+            0x0285, 0x0002, 0x0286, 0x0003, 0x0287, 0x0002, 0x0288, 0x0002,
+            0x0289, 0x0005, 0x0292, 0x0003, 0x029A, 0x0014, 0x029D, 0x0005,
+            0x029E, 0x0006, 0x029F, 0x0005, 0x02A4, 0x000A, 0x02A6, 0x0002,
+            0x02A9, 0x0002, 0x02C6, 0x0004, 0x02C7, 0x0004, 0x02CC, 0x0002,
+            0x02CE, 0x0005, 0x02CF, 0x0002, 0x02D0, 0x0002, 0x02DF, 0x0002,
+            0x02E2, 0x0002, 0x02E5, 0x0004, 0x02E9, 0x0002, 0x02EA, 0x0002,
+            0x02F2, 0x0002, 0x02F6, 0x0002, 0x0305, 0x0012, 0x0306, 0x000E,
+            0x030A, 0x0004, 0x0310, 0x0002, 0x0321, 0x0002,
+        };
+        private static readonly ushort[] formtable_USUM = // u16 species, u16 formcount
+        {
+            0x0003, 0x0002, 0x0006, 0x0003, 0x0009, 0x0002, 0x000F, 0x0002,
+            0x0012, 0x0002, 0x0013, 0x0002, 0x0014, 0x0003, 0x0019, 0x0008,
+            0x001A, 0x0002, 0x001B, 0x0002, 0x001C, 0x0002, 0x0025, 0x0002,
+            0x0026, 0x0002, 0x0032, 0x0002, 0x0033, 0x0002, 0x0034, 0x0002,
+            0x0035, 0x0002, 0x0041, 0x0002, 0x004A, 0x0002, 0x004B, 0x0002,
+            0x004C, 0x0002, 0x0050, 0x0002, 0x0058, 0x0002, 0x0059, 0x0002,
+            0x005E, 0x0002, 0x0067, 0x0002, 0x0069, 0x0003, 0x0073, 0x0002,
+            0x007F, 0x0002, 0x0082, 0x0002, 0x008E, 0x0002, 0x0096, 0x0003,
+            0x00B5, 0x0002, 0x00C9, 0x001C, 0x00D0, 0x0002, 0x00D4, 0x0002,
+            0x00D6, 0x0002, 0x00E5, 0x0002, 0x00F8, 0x0002, 0x00FE, 0x0002,
+            0x0101, 0x0002, 0x0104, 0x0002, 0x011A, 0x0002, 0x012E, 0x0002,
+            0x012F, 0x0002, 0x0132, 0x0002, 0x0134, 0x0002, 0x0136, 0x0002,
+            0x013F, 0x0002, 0x0143, 0x0002, 0x014E, 0x0002, 0x015F, 0x0004,
+            0x0162, 0x0002, 0x0167, 0x0002, 0x016A, 0x0002, 0x0175, 0x0002,
+            0x0178, 0x0002, 0x017C, 0x0002, 0x017D, 0x0002, 0x017E, 0x0002,
+            0x017F, 0x0002, 0x0180, 0x0002, 0x0182, 0x0004, 0x019C, 0x0003,
+            0x019D, 0x0003, 0x019E, 0x0003, 0x01A5, 0x0002, 0x01A6, 0x0002,
+            0x01A7, 0x0002, 0x01AC, 0x0002, 0x01BD, 0x0002, 0x01C0, 0x0002,
+            0x01CC, 0x0002, 0x01DB, 0x0002, 0x01DF, 0x0006, 0x01E7, 0x0002,
+            0x01EC, 0x0002, 0x01ED, 0x0012, 0x0213, 0x0002, 0x0226, 0x0002,
+            0x022B, 0x0002, 0x0249, 0x0004, 0x024A, 0x0004, 0x0281, 0x0002,
+            0x0282, 0x0002, 0x0285, 0x0002, 0x0286, 0x0003, 0x0287, 0x0002,
+            0x0288, 0x0002, 0x0289, 0x0005, 0x0292, 0x0003, 0x0298, 0x0014,
+            0x0299, 0x0014, 0x029A, 0x0014, 0x029D, 0x0005, 0x029E, 0x0006,
+            0x029F, 0x0005, 0x02A4, 0x000A, 0x02A6, 0x0002, 0x02A9, 0x0002,
+            0x02C6, 0x0004, 0x02C7, 0x0004, 0x02CC, 0x0002, 0x02CE, 0x0005,
+            0x02CF, 0x0002, 0x02D0, 0x0002, 0x02DF, 0x0002, 0x02E2, 0x0002,
+            0x02E5, 0x0004, 0x02E7, 0x0002, 0x02E8, 0x0002, 0x02E9, 0x0003,
+            0x02EA, 0x0002, 0x02F0, 0x0002, 0x02F2, 0x0002, 0x02F6, 0x0002,
+            0x0305, 0x0012, 0x0306, 0x000E, 0x0309, 0x0002, 0x030A, 0x0004,
+            0x0310, 0x0002, 0x0320, 0x0004, 0x0321, 0x0002
+        };
+        private static int GetDexFormBitIndex(int species, int formct, int start, IReadOnlyList<ushort> formtable)
+        {
+            int formindex = start;
+            int f = 0;
+            for (int i = 0; i < formtable.Count; i += 2)
+            {
+                int s = formtable[i];
+                f = formtable[i + 1];
+                if (s == species)
+                    break;
+
+                formindex += f - 1;
+            }
+            if (f > formct)
+                return -1;
+            return formindex;
+        }
         public static int GetDexFormIndexBW(int species, int formct)
         {
             if (formct < 1 || species < 0)
@@ -807,55 +895,8 @@ namespace PKHeX.Core
                 default: return GetDexFormIndexXY(species, formct);
             }
         }
-        public static int GetDexFormIndexSM(int species, int formct, int start)
-        {
-            ushort[] formtable = // u16 species, u16 formcount
-            {
-                0x0003, 0x0002, 0x0006, 0x0003, 0x0009, 0x0002, 0x000F, 0x0002,
-                0x0012, 0x0002, 0x0013, 0x0002, 0x0014, 0x0003, 0x0019, 0x0007,
-                0x001A, 0x0002, 0x001B, 0x0002, 0x001C, 0x0002, 0x0025, 0x0002,
-                0x0026, 0x0002, 0x0032, 0x0002, 0x0033, 0x0002, 0x0034, 0x0002,
-                0x0035, 0x0002, 0x0041, 0x0002, 0x004A, 0x0002, 0x004B, 0x0002,
-                0x004C, 0x0002, 0x0050, 0x0002, 0x0058, 0x0002, 0x0059, 0x0002,
-                0x005E, 0x0002, 0x0067, 0x0002, 0x0069, 0x0002, 0x0073, 0x0002,
-                0x007F, 0x0002, 0x0082, 0x0002, 0x008E, 0x0002, 0x0096, 0x0003,
-                0x00B5, 0x0002, 0x00C9, 0x001C, 0x00D0, 0x0002, 0x00D4, 0x0002,
-                0x00D6, 0x0002, 0x00E5, 0x0002, 0x00F8, 0x0002, 0x00FE, 0x0002,
-                0x0101, 0x0002, 0x0104, 0x0002, 0x011A, 0x0002, 0x012E, 0x0002,
-                0x012F, 0x0002, 0x0132, 0x0002, 0x0134, 0x0002, 0x0136, 0x0002,
-                0x013F, 0x0002, 0x0143, 0x0002, 0x014E, 0x0002, 0x015F, 0x0004,
-                0x0162, 0x0002, 0x0167, 0x0002, 0x016A, 0x0002, 0x0175, 0x0002,
-                0x0178, 0x0002, 0x017C, 0x0002, 0x017D, 0x0002, 0x017E, 0x0002,
-                0x017F, 0x0002, 0x0180, 0x0002, 0x0182, 0x0004, 0x019C, 0x0003,
-                0x019D, 0x0003, 0x01A5, 0x0002, 0x01A6, 0x0002, 0x01A7, 0x0002,
-                0x01AC, 0x0002, 0x01BD, 0x0002, 0x01C0, 0x0002, 0x01CC, 0x0002,
-                0x01DB, 0x0002, 0x01DF, 0x0006, 0x01E7, 0x0002, 0x01EC, 0x0002,
-                0x01ED, 0x0012, 0x0213, 0x0002, 0x0226, 0x0002, 0x022B, 0x0002,
-                0x0249, 0x0004, 0x024A, 0x0004, 0x0281, 0x0002, 0x0282, 0x0002,
-                0x0285, 0x0002, 0x0286, 0x0003, 0x0287, 0x0002, 0x0288, 0x0002,
-                0x0289, 0x0005, 0x0292, 0x0003, 0x029A, 0x0014, 0x029D, 0x0005,
-                0x029E, 0x0006, 0x029F, 0x0005, 0x02A4, 0x000A, 0x02A6, 0x0002,
-                0x02A9, 0x0002, 0x02C6, 0x0004, 0x02C7, 0x0004, 0x02CC, 0x0002,
-                0x02CE, 0x0005, 0x02CF, 0x0002, 0x02D0, 0x0002, 0x02DF, 0x0002,
-                0x02E2, 0x0002, 0x02E5, 0x0004, 0x02E9, 0x0002, 0x02EA, 0x0002,
-                0x02F2, 0x0002, 0x02F6, 0x0002, 0x0305, 0x0012, 0x0306, 0x000E,
-                0x030A, 0x0004, 0x0310, 0x0002, 0x0321, 0x0002,
-            };
-            int formindex = start;
-            int f = 0;
-            for (int i = 0; i < formtable.Length; i += 2)
-            {
-                int s = formtable[i];
-                f = formtable[i + 1];
-                if (s == species)
-                    break;
-
-                formindex += f - 1;
-            }
-            if (f > formct)
-                return -1;
-            return formindex;
-        }
+        public static int GetDexFormIndexSM(int species, int formct, int start) => GetDexFormBitIndex(species, formct, start, formtable_SM);
+        public static int GetDexFormIndexUSUM(int species, int formct, int start) => GetDexFormBitIndex(species, formct, start, formtable_USUM);
 
         public static int GetCXDVersionID(int gen3version)
         {
@@ -922,14 +963,13 @@ namespace PKHeX.Core
             oldKeys[2] += 0x17;
             oldKeys[3] += 0x13;
 
-            ushort[] keys = new ushort[4];
-
-            keys[0] = (ushort)(oldKeys[0] & 0xf         | oldKeys[1] << 4 & 0xf0    | oldKeys[2] << 8 & 0xf00   | oldKeys[3] << 12 & 0xf000);
-            keys[1] = (ushort)(oldKeys[0] >> 4 & 0xf    | oldKeys[1] & 0xf0         | oldKeys[2] << 4 & 0xf00   | oldKeys[3] << 8 & 0xf000);
-            keys[2] = (ushort)(oldKeys[2] & 0xf00       | (oldKeys[1] & 0xf00) >> 4 | (oldKeys[0] & 0xf00) >> 8 | oldKeys[3] << 4 & 0xf000);
-            keys[3] = (ushort)(oldKeys[0] >> 12 & 0xf   | oldKeys[1] >> 8 & 0xf0    | oldKeys[2] >> 4 & 0xf00   | oldKeys[3] & 0xf000);
-
-            return keys;
+            return new[]
+            {
+                (ushort)(oldKeys[0] & 0xf         | oldKeys[1] << 4 & 0xf0    | oldKeys[2] << 8 & 0xf00   | oldKeys[3] << 12 & 0xf000),
+                (ushort)(oldKeys[0] >> 4 & 0xf    | oldKeys[1] & 0xf0         | oldKeys[2] << 4 & 0xf00   | oldKeys[3] << 8 & 0xf000),
+                (ushort)(oldKeys[2] & 0xf00       | (oldKeys[1] & 0xf00) >> 4 | (oldKeys[0] & 0xf00) >> 8 | oldKeys[3] << 4 & 0xf000),
+                (ushort)(oldKeys[0] >> 12 & 0xf   | oldKeys[1] >> 8 & 0xf0    | oldKeys[2] >> 4 & 0xf00   | oldKeys[3] & 0xf000),
+            };
         }
 
         /// <summary>

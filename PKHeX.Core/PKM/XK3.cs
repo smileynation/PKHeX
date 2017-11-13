@@ -2,6 +2,7 @@
 
 namespace PKHeX.Core
 {
+    /// <summary> Generation 3 <see cref="PKM"/> format, exclusively for Pokémon XD. </summary>
     public class XK3 : PKM, IRibbonSetEvent3, IRibbonSetCommon3, IRibbonSetUnique3, IRibbonSetOnly3, IShadowPKM
     {
         public static readonly byte[] ExtraBytes =
@@ -195,7 +196,7 @@ namespace PKHeX.Core
         // Generated Attributes
         public override int PSV => (int)((PID >> 16 ^ PID & 0xFFFF) >> 3);
         public override int TSV => (TID ^ SID) >> 3;
-        public override bool Japanese => Language == 1;
+        public override bool Japanese => Language == (int)LanguageID.Japanese;
 
         protected override byte[] Encrypt()
         {

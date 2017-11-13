@@ -1412,13 +1412,14 @@
             // 
             this.CB_Format.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.CB_Format.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.CB_Format.DropDownWidth = 100;
             this.CB_Format.FormattingEnabled = true;
             this.CB_Format.Items.AddRange(new object[] {
             "Any",
             ".wc7",
             ".wc6",
             ".pgf",
-            ".pcd/pgt",
+            ".pcd/pgt/.wc4",
             ".wc3"});
             this.CB_Format.Location = new System.Drawing.Point(54, 0);
             this.CB_Format.Margin = new System.Windows.Forms.Padding(0);

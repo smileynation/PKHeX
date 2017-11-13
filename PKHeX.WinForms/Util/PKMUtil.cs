@@ -49,6 +49,13 @@ namespace PKHeX.WinForms
 
             // Redrawing logic
             Image baseImage = (Image)Resources.ResourceManager.GetObject(file);
+            if (FormConverter.IsTotemForm(species, form))
+            {
+                form = FormConverter.GetTotemBaseForm(species, form);
+                file = PKX.GetResourceStringSprite(species, form, gender, generation);
+                baseImage = (Image)Resources.ResourceManager.GetObject(file);
+                baseImage = ImageUtil.ToGrayscale(baseImage);
+            }
             if (baseImage == null)
             {
                 baseImage = (Image) Resources.ResourceManager.GetObject($"_{species}");
@@ -145,7 +152,7 @@ namespace PKHeX.WinForms
             {
                 if (slot < 30)
                     pkm.Box = box;
-                var la = new LegalityAnalysis(pkm);
+                var la = new LegalityAnalysis(pkm, SAV.Personal);
                 if (la.Parsed && !la.Valid && pkm.Species != 0)
                     sprite = ImageUtil.LayerImage(sprite, Resources.warn, 0, 14, 1);
             }

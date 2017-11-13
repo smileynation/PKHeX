@@ -8,6 +8,9 @@ using static PKHeX.Core.LegalityCheckStrings;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Legality Check object containing the <see cref="CheckResult"/> data and overview values from the parse.
+    /// </summary>
     public partial class LegalityAnalysis
     {
         private PKM pkm;
@@ -17,11 +20,12 @@ namespace PKHeX.Core
         private IEncounterable EncounterOriginalGB;
         private IEncounterable EncounterMatch => Info.EncounterMatch;
         private Type Type; // Parent class when applicable (EncounterStatic / MysteryGift)
-        private string EncounterName => $"{(EncounterOriginalGB ?? EncounterMatch).GetEncounterTypeName()} ({SpeciesStrings[EncounterMatch.Species]})";
+
         private CheckResult Encounter, History;
 
         public readonly bool Parsed;
         public readonly bool Valid;
+        private readonly PersonalInfo PersonalInfo;
         public LegalInfo Info { get; private set; }
         public bool ParsedValid => Parsed && Valid;
         public bool ParsedInvalid => Parsed && !Valid;
@@ -52,13 +56,27 @@ namespace PKHeX.Core
         }
         private int[] _allSuggestedMoves, _allSuggestedRelearnMoves;
         public int[] AllSuggestedMovesAndRelearn => AllSuggestedMoves.Concat(AllSuggestedRelearnMoves).ToArray();
+        private string EncounterName
+        {
+            get
+            {
+                var enc = EncounterOriginalGB ?? EncounterMatch;
+                return $"{enc.GetEncounterTypeName()} ({SpeciesStrings[enc.Species]})";
+            }
+        }
 
-        public LegalityAnalysis(PKM pk)
+        /// <summary>
+        /// Checks the input <see cref="PKM"/> data for legality.
+        /// </summary>
+        /// <param name="pk">Input data to check</param>
+        /// <param name="table"><see cref="SaveFile"/> specific personal data</param>
+        public LegalityAnalysis(PKM pk, PersonalTable table = null)
         {
 #if SUPPRESS
             try
 #endif
             {
+                PersonalInfo = table?.GetFormeEntry(pk.Species, pk.AltForm) ?? pk.PersonalInfo;
                 switch (pk.Format) // prior to storing GameVersion
                 {
                     case 1: ParsePK1(pk); break;
@@ -195,11 +213,12 @@ namespace PKHeX.Core
         private void UpdateVCTransferInfo()
         {
             EncounterOriginalGB = EncounterMatch;
-            if (pkm.VC1)
-                Info.EncounterMatch = EncounterGenerator.GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
-            else if (pkm.VC2)
-                Info.EncounterMatch = EncounterGenerator.GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
-            foreach (var z in VerifyVCEncounter(pkm, EncounterOriginalGB.Species, EncounterOriginalGB as GBEncounterData, Info.EncounterMatch as EncounterStatic))
+            Info.EncounterMatch = EncounterGenerator.GetVCStaticTransferEncounter(pkm);
+            EncounterStatic s = Info.EncounterMatch as EncounterStatic;
+            if (s == null || !EncounterGenerator.IsVCStaticTransferEncounterValid(pkm, s))
+            { AddLine(Severity.Invalid, V80, CheckIdentifier.Encounter); return; }
+
+            foreach (var z in VerifyVCEncounter(pkm, EncounterOriginalGB.Species, EncounterOriginalGB as GBEncounterData, s))
                 AddLine(z);
         }
         private void UpdateInfo()
@@ -233,14 +252,6 @@ namespace PKHeX.Core
         }
         private void UpdateTypeInfo()
         {
-            if (pkm.Format >= 7)
-            {
-                if (pkm.VC1)
-                    Info.EncounterMatch = EncounterGenerator.GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
-                else if (pkm.VC2)
-                    Info.EncounterMatch = EncounterGenerator.GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
-            }
-
             if (pkm.GenNumber <= 2 && pkm.TradebackStatus == TradebackType.Any && (EncounterMatch as GBEncounterData)?.Generation != pkm.GenNumber)
                 // Example: GSC Pokemon with only possible encounters in RBY, like the legendary birds
                 pkm.TradebackStatus = TradebackType.WasTradeback;
@@ -283,7 +294,7 @@ namespace PKHeX.Core
         }
         private string GetLegalityReport()
         {
-            if (!Parsed || pkm == null)
+            if (!Parsed || pkm == null || Info == null)
                 return V189;
             
             var lines = new List<string>();
@@ -312,7 +323,7 @@ namespace PKHeX.Core
         }
         private string GetVerboseLegalityReport()
         {
-            if (!Parsed || pkm == null)
+            if (!Parsed || pkm == null || Info == null)
                 return V189;
 
             const string separator = "===";
